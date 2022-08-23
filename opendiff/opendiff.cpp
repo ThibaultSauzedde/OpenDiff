@@ -10,8 +10,12 @@
 #include <unsupported/Eigen/CXX11/Tensor>
 #include <Eigen/Dense>
 
+#include <petscmat.h>
+#include <slepceps.h>
+
 #include "materials.h"
 #include "macrolib.h"
+#include "diff_operator.h"
 
 namespace py = pybind11;
 
@@ -35,6 +39,22 @@ py::array_t<T> eigenTensor3D(py::array_t<T> inArray)
     return py::array_t<T, py::array::c_style>(shape,
                                               in_tensor.data()); // data pointer
 }
+
+// void PetscVecToEigen(const Vec &pvec, unsigned int nrow, unsigned int ncol, Eigen::MatrixXd &emat)
+// {
+//     PetscScalar *pdata;
+//     // Returns a pointer to a contiguous array containing this
+//     processor's portion
+//         // of the vector data. For standard vectors this doesn't use any copies.
+//         // If the the petsc vector is not in a contiguous array then it will copy
+//         // it to a contiguous array.
+//         VecGetArray(pvec, &pdata);
+//     // Make the Eigen type a map to the data. Need to be mindful of
+//     anything that
+//         // changes the underlying data location like re-allocations.
+//         emat = Eigen::Map<Eigen::MatrixXd>(pdata, nrow, ncol);
+//     VecRestoreArray(pvec, &pdata);
+// }
 
 PYBIND11_MODULE(opendiff, m)
 {
@@ -64,5 +84,17 @@ PYBIND11_MODULE(opendiff, m)
         .def("getNbGroups", &mat::Macrolib::getNbGroups)
         .def("getGeometryNDim", &mat::Macrolib::getGeometryNDim)
         .def("getValues", &mat::Macrolib::getValuesPython)
-        .def("getValues1DView", &mat::Macrolib::getValues1DViewPython);
+        .def("getValues1D", &mat::Macrolib::getValues1DPython);
+
+    py::module operators = m.def_submodule("operators", "A module for the operators' creation.");
+    operators.def("init_petsc", PetscInitializeNoArguments);
+    operators.def("diff_removal_op", &operators::diff_removal_op);
+    operators.def("diff_fission_op", &operators::diff_fission_op);
+    operators.def("diff_scatering_op", &operators::diff_scatering_op);
+
+    typedef std::vector<double> vecd;
+
+    operators.def("diff_diffusion_op_1d", py::overload_cast<vecd &, mat::Macrolib &, double, double>(&operators::diff_diffusion_op));
+    operators.def("diff_diffusion_op_2d", py::overload_cast<vecd &, vecd &, mat::Macrolib &, double, double, double, double>(&operators::diff_diffusion_op));
+    operators.def("diff_diffusion_op_3d", py::overload_cast<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>(&operators::diff_diffusion_op));
 }

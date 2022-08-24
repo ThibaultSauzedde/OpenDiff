@@ -2,14 +2,9 @@
 #define MACROLIB_H
 
 #include <vector>
-#include <string_view>
-#include <string>
-#include <map>
-#include <iostream>
-
 #include <pybind11/pybind11.h>
-#include <pybind11/eigen.h>
 #include <pybind11/stl.h>
+#include <pybind11/eigen.h>
 
 #include <unsupported/Eigen/CXX11/Tensor>
 
@@ -50,7 +45,6 @@ namespace mat
 
         const auto getReacNames() { return m_reac_names; };
         const int getNbGroups() { return m_nb_groups; };
-        const int getGeometryNDim() { return m_nb_groups; };
     };
 
 } // namespace mat

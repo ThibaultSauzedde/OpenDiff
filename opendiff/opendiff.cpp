@@ -16,12 +16,14 @@
 #include "materials.h"
 #include "macrolib.h"
 #include "diff_operator.h"
+#include "solver.h"
 
 namespace py = pybind11;
+using vecd = std::vector<double>;
+using SpMat = Eigen::SparseMatrix<double>; // declares a column-major sparse matrix type of double
 
 // return 3 dimensional ndarray
 template <class T>
-
 py::array_t<T> eigenTensor3D(py::array_t<T> inArray)
 {
 
@@ -82,19 +84,27 @@ PYBIND11_MODULE(opendiff, m)
         .def(py::init<const mat::Materials &, const std::vector<std::vector<std::vector<std::string>>> &>())
         .def("getReacNames", &mat::Macrolib::getReacNames)
         .def("getNbGroups", &mat::Macrolib::getNbGroups)
-        .def("getGeometryNDim", &mat::Macrolib::getGeometryNDim)
         .def("getValues", &mat::Macrolib::getValuesPython)
         .def("getValues1D", &mat::Macrolib::getValues1DPython);
 
     py::module operators = m.def_submodule("operators", "A module for the operators' creation.");
     operators.def("init_petsc", PetscInitializeNoArguments);
-    operators.def("diff_removal_op", &operators::diff_removal_op);
-    operators.def("diff_fission_op", &operators::diff_fission_op);
-    operators.def("diff_scatering_op", &operators::diff_scatering_op);
 
-    typedef std::vector<double> vecd;
+    operators.def("diff_removal_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_removal_op<SpMat>));
+    operators.def("diff_fission_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_fission_op<SpMat>));
+    operators.def("diff_scatering_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_scatering_op<SpMat>));
+    operators.def("diff_diffusion_op_1d", py::overload_cast<vecd &, mat::Macrolib &, double, double>(&operators::diff_diffusion_op<SpMat>));
+    operators.def("diff_diffusion_op_2d", py::overload_cast<vecd &, vecd &, mat::Macrolib &, double, double, double, double>(&operators::diff_diffusion_op<SpMat>));
+    operators.def("diff_diffusion_op_3d", py::overload_cast<vecd &, vecd &, vecd &, mat::Macrolib &,
+                                                            double, double, double, double, double, double>(&operators::diff_diffusion_op<SpMat>));
 
-    operators.def("diff_diffusion_op_1d", py::overload_cast<vecd &, mat::Macrolib &, double, double>(&operators::diff_diffusion_op));
-    operators.def("diff_diffusion_op_2d", py::overload_cast<vecd &, vecd &, mat::Macrolib &, double, double, double, double>(&operators::diff_diffusion_op));
-    operators.def("diff_diffusion_op_3d", py::overload_cast<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>(&operators::diff_diffusion_op));
+    py::module solver = m.def_submodule("solver", "A module for the solver.");
+    // py::class_<solver::Solver>(solver, "Solver");
+
+    // py::class_<solver::SolverEigen, solver::Solver>(solver, "Solver")
+    //     // .def(py::init<const solver::SolverEigen &>())
+    //     .def(py::init<vecd &, mat::Macrolib &>());
+    py::class_<solver::SolverEigen>(solver, "Solver")
+        .def(py::init<const solver::SolverEigen &>())
+        .def(py::init<vecd &, mat::Macrolib &, double, double>());
 }

@@ -12,6 +12,7 @@ namespace solver
 
     using SpMat = Eigen::SparseMatrix<double>; // declares a column-major sparse matrix type of double
     using vecd = std::vector<double>;
+    using Tensor1D = Eigen::Tensor<double, 1>;
 
     Eigen::Tensor<double, 1> delta_coord(vecd &coord);
 
@@ -22,8 +23,10 @@ namespace solver
         T m_K{};
         T m_M{};
 
-        vecd m_eigen_values{};
-        std::vector<vecd> m_eigen_vectors{};
+        Tensor1D m_volumes{};
+
+        Eigen::VectorXd m_eigen_values{};
+        std::vector<Eigen::VectorXd> m_eigen_vectors{};
 
     public:
         Solver() = delete;
@@ -34,49 +37,98 @@ namespace solver
             m_M = M;
         };
         Solver(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
-               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
+               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn)
+        {
+            // calculate dx, dy
+            auto dx = delta_coord(x);
+            auto dy = delta_coord(y);
+            auto dz = delta_coord(z);
+            Eigen::array<Eigen::IndexPair<long>, 0> empty_index_list = {};
+            Eigen::Tensor<double, 3> vol = dx.contract(dy, empty_index_list).contract(dz, empty_index_list);
+            Eigen::array<Eigen::DenseIndex, 1> one_dim({static_cast<int>(vol.size())});
+
+            m_volumes = vol.reshape(one_dim);
+            m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
+            std::cout << "fission" << std::endl;
+            auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, dy, dz, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn);
+            std::cout << "fission" << std::endl;
+            m_M = operators::setup_m_operators<>(D, m_volumes, macrolib);
+        };
+
         Solver(vecd &x, vecd &y, mat::Macrolib &macrolib,
-               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
+               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn)
+        {
+            // calculate dx, dy
+            auto dx = delta_coord(x);
+            auto dy = delta_coord(y);
+            Eigen::array<Eigen::IndexPair<long>, 0> empty_index_list = {};
+            Eigen::Tensor<double, 2> surf = dx.contract(dy, empty_index_list);
+            Eigen::array<Eigen::DenseIndex, 1> one_dim({static_cast<int>(surf.size())});
+
+            m_volumes = surf.reshape(one_dim);
+            m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
+            auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, dy, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn);
+            m_M = operators::setup_m_operators<T, Tensor1D>(D, m_volumes, macrolib);
+        };
+
         Solver(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn)
         {
             // calculate dx
             auto dx = delta_coord(x);
-            std::cout << dx[0] << std::endl;
-            // cast to vect for operators functions
-            // todo: use templates for operators functions
-            // double *dx_data = dx.data();
-            // int dx_size = static_cast<int>(dx.size());
-            // vecd dx_v(std::move(dx_data), dx_data + dx_size);
-            // for (auto data : dx_v)
-            //     std::cout << data << std::endl;
-            // auto D = operators::diff_diffusion_op<T>(dx, macrolib, albedo_x0, albedo_xn);
-            // setup_operators(D, dx_v, macrolib);
+            m_volumes = dx;
+
+            m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
+            auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, macrolib, albedo_x0, albedo_xn);
+            m_M = operators::setup_m_operators<T, Tensor1D>(D, m_volumes, macrolib);
         };
 
-        void setup_operators(T &D, vecd volumes, mat::Macrolib &macrolib)
+        const auto getEigenValues() const
         {
-            // for (auto data : volumes)
-            //     std::cout << data << std::endl;
-            auto R = operators::diff_removal_op<T>(volumes, macrolib);
+            return m_eigen_values;
+        };
+        const auto getEigenVectors() const
+        {
+            return m_eigen_vectors;
+        };
+        const auto getK() const
+        {
+            return m_K;
+        };
+        const auto getM() const
+        {
+            return m_M;
         };
 
-        void makeAdjoint();
-        virtual void solve(int nb_eigen_values, vecd v0, double tol, double tol_eigen_vectors) = 0;
-        vecd get_power(mat::Macrolib &macrolib);
+        virtual void makeAdjoint() = 0;
 
-        const auto getEigenValues() const { return m_eigen_values; };
-        const auto getEigenVectors() const { return m_eigen_vectors; };
-        const auto getK() const { return m_K; };
-        const auto getM() const { return m_M; };
+        virtual void solve(double tol = 1e-6, double tol_eigen_vectors = 1e-4, int nb_eigen_values = 1, const Eigen::VectorXd &v0 = Eigen::VectorXd()) = 0;
+        vecd get_power(mat::Macrolib &macrolib);
     };
 
-    class SolverEigen : public Solver<SpMat>
+    class SolverPowerIt : public Solver<SpMat>
     {
     public:
-        SolverEigen(const Solver &copy) : Solver(copy){};
-        SolverEigen(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn) : Solver(x, macrolib, albedo_x0, albedo_xn){};
+        SolverPowerIt(const Solver &copy) : Solver(copy){};
+        SolverPowerIt(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn) : Solver(x, macrolib, albedo_x0, albedo_xn){};
+        SolverPowerIt(vecd &x, vecd &y, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn) : Solver(x, y, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn){};
+        SolverPowerIt(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn) : Solver(x, y, z, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn){};
 
-        void solve(int nb_eigen_values, vecd v0, double tol, double tol_eigen_vectors) override;
+        void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0) override;
+
+        void makeAdjoint() override;
+    };
+
+    class SolverSlepc : public Solver<Mat>
+    {
+    public:
+        SolverSlepc(const Solver &copy) : Solver(copy){};
+        SolverSlepc(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn) : Solver(x, macrolib, albedo_x0, albedo_xn){};
+        SolverSlepc(vecd &x, vecd &y, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn) : Solver(x, y, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn){};
+        SolverSlepc(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn) : Solver(x, y, z, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn){};
+
+        void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0) override;
+
+        void makeAdjoint() override;
     };
 
 } // namespace solver

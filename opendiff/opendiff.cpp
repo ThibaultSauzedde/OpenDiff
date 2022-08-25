@@ -68,7 +68,7 @@ PYBIND11_MODULE(opendiff, m)
 
     py::class_<mat::Materials>(materials, "Materials")
         .def(py::init<const mat::Materials &>())
-        .def(py::init<const std::vector<Eigen::ArrayXXf> &, const std::vector<std::string> &,
+        .def(py::init<const std::vector<Eigen::ArrayXXd> &, const std::vector<std::string> &,
                       const std::vector<std::string> &>())
         .def("getReacNames", &mat::Materials::getReacNames)
         .def("getMatNames", &mat::Materials::getMatNames)
@@ -90,21 +90,42 @@ PYBIND11_MODULE(opendiff, m)
     py::module operators = m.def_submodule("operators", "A module for the operators' creation.");
     operators.def("init_petsc", PetscInitializeNoArguments);
 
-    operators.def("diff_removal_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_removal_op<SpMat>));
-    operators.def("diff_fission_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_fission_op<SpMat>));
-    operators.def("diff_scatering_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_scatering_op<SpMat>));
-    operators.def("diff_diffusion_op_1d", py::overload_cast<vecd &, mat::Macrolib &, double, double>(&operators::diff_diffusion_op<SpMat>));
-    operators.def("diff_diffusion_op_2d", py::overload_cast<vecd &, vecd &, mat::Macrolib &, double, double, double, double>(&operators::diff_diffusion_op<SpMat>));
+    operators.def("diff_removal_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_removal_op<SpMat, vecd>));
+    operators.def("diff_fission_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_fission_op<SpMat, vecd>));
+    operators.def("diff_scatering_op", py::overload_cast<vecd &, mat::Macrolib &>(&operators::diff_scatering_op<SpMat, vecd>));
+    operators.def("diff_diffusion_op_1d", py::overload_cast<vecd &, mat::Macrolib &, double, double>(&operators::diff_diffusion_op<SpMat, vecd>));
+    operators.def("diff_diffusion_op_2d", py::overload_cast<vecd &, vecd &, mat::Macrolib &, double, double, double, double>(&operators::diff_diffusion_op<SpMat, vecd>));
     operators.def("diff_diffusion_op_3d", py::overload_cast<vecd &, vecd &, vecd &, mat::Macrolib &,
-                                                            double, double, double, double, double, double>(&operators::diff_diffusion_op<SpMat>));
+                                                            double, double, double, double, double, double>(&operators::diff_diffusion_op<SpMat, vecd>));
 
     py::module solver = m.def_submodule("solver", "A module for the solver.");
-    // py::class_<solver::Solver>(solver, "Solver");
 
-    // py::class_<solver::SolverEigen, solver::Solver>(solver, "Solver")
-    //     // .def(py::init<const solver::SolverEigen &>())
-    //     .def(py::init<vecd &, mat::Macrolib &>());
-    py::class_<solver::SolverEigen>(solver, "Solver")
-        .def(py::init<const solver::SolverEigen &>())
-        .def(py::init<vecd &, mat::Macrolib &, double, double>());
+    py::class_<solver::SolverPowerIt>(solver, "SolverPowerIt")
+        .def(py::init<const solver::SolverPowerIt &>())
+        .def(py::init<vecd &, mat::Macrolib &, double, double>())
+        .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
+        .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
+        .def("makeAdjoint", &solver::SolverPowerIt::makeAdjoint)
+        .def("getEigenValues", &solver::SolverPowerIt::getEigenValues)
+        .def("getEigenVectors", &solver::SolverPowerIt::getEigenVectors) // maybe reformat it in python ???
+        .def("getK", &solver::SolverPowerIt::getK)
+        .def("getM", &solver::SolverPowerIt::getM)
+        .def("solve", &solver::SolverPowerIt::solve,
+             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd());
+    // .def("get_power", &solver::SolverPowerIt::get_power); // maybe reformat it in python ???
+
+    py::class_<solver::SolverSlepc>(solver, "SolverSlepc")
+        .def(py::init<const solver::SolverSlepc &>())
+        .def(py::init<vecd &, mat::Macrolib &, double, double>())
+        .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
+        .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
+        .def("makeAdjoint", &solver::SolverSlepc::makeAdjoint)
+        .def("getEigenValues", &solver::SolverSlepc::getEigenValues)
+        .def("getEigenVectors", &solver::SolverSlepc::getEigenVectors) // maybe reformat it in python ???
+        .def("solve", &solver::SolverSlepc::solve,
+             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd());
+
+    // .def("get_power", &solver::SolverSlepc::get_power); // maybe reformat it in python ???
 }

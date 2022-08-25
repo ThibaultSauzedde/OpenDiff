@@ -24,7 +24,9 @@ class my_build_ext(build_ext):
 #   Sort input source files if you glob sources to ensure bit-for-bit
 #   reproducible builds (https://github.com/pybind/python_example/pull/53)
 
-ParallelCompile("NPY_NUM_BUILD_JOBS", needs_recompile=naive_recompile).install()
+
+ParallelCompile("NPY_NUM_BUILD_JOBS",
+                needs_recompile=naive_recompile).install()
 
 
 # todo: add petsc as optional, later??
@@ -35,7 +37,7 @@ ext_modules = [
                       define_macros=[('VERSION_INFO', __version__)],
                       include_dirs=[
                           '/home/ts249161/anaconda3/envs/opendiff/include/eigen3'],
-                      libraries=['petsc'],
+                      libraries=['petsc', 'slepc'],
                       #   library_dirs=[
                       #       "/home/ts249161/anaconda3/envs/opendiff/x86_64-conda-linux-gnu/sysroot/lib/"],
                       #   extra_link_args=[

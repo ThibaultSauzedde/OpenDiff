@@ -23,12 +23,6 @@ namespace solver
         return c_map.slice(offsets_p, extents_p) - c_map.slice(offsets, extents);
     }
 
-    void SolverPowerIt::makeAdjoint()
-    {
-        m_M = m_M.adjoint();
-        m_K = m_K.adjoint();
-    }
-
     void SolverPowerIt::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0)
     {
         //todo: add parmter for choosing the solver for ax =b
@@ -88,18 +82,18 @@ namespace solver
         std::cout << "vp = " << eigen_value << std::endl;
     }
 
-    void SolverSlepc::makeAdjoint()
-    {
-        MatTranspose(m_M, MAT_INPLACE_MATRIX, &m_M);
-        MatTranspose(m_K, MAT_INPLACE_MATRIX, &m_K);
-    }
+    // void SolverSlepc::makeAdjoint()
+    // {
+    //     MatTranspose(m_M, MAT_INPLACE_MATRIX, &m_M);
+    //     MatTranspose(m_K, MAT_INPLACE_MATRIX, &m_K);
+    // }
 
     void SolverSlepc::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0)
     {
-        //todo: add parameter for choosing the solver for ax =b
-        PetscInt nrows, ncols;
-        MatGetSize(m_M, &nrows, &ncols);
-        int pblm_dim = static_cast<int>(nrows);
+        // MatGetSize(m_M, &nrows, &ncols);
+        SlepcInitialize(NULL, NULL, NULL, NULL);
+
+        int pblm_dim = static_cast<int>(m_M.rows());
         int v0_size = static_cast<int>(v0.size());
 
         float r_tol = 1e5;
@@ -114,17 +108,95 @@ namespace solver
         else if (v0_size != pblm_dim)
             throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
 
+        //convert eigen matrix to slepc one
+
+        // //add 0 to diagonal (mandatory with MatCreateSeqAIJWithArrays)
+        // for (int i{0}; i < pblm_dim; ++i)
+        // {
+        //     m_M.coeffRef(i, i) += 0.;
+        //     m_K.coeffRef(i, i) += 0.;
+        // }
+
+        m_M.makeCompressed();
+        m_K.makeCompressed();
+
+        Mat M;
+        Mat K;
+
+        MatCreateSeqAIJWithArrays(PETSC_COMM_WORLD, pblm_dim, pblm_dim, m_M.outerIndexPtr(), m_M.innerIndexPtr(), m_M.valuePtr(), &M);
+        MatCreateSeqAIJWithArrays(PETSC_COMM_WORLD, pblm_dim, pblm_dim, m_K.outerIndexPtr(), m_K.innerIndexPtr(), m_K.valuePtr(), &K);
+
+        std::cout << m_M.rows() << std::endl;
+        std::cout << m_M.cols() << std::endl;
+
+        std::cout << m_M << std::endl;
+        MatView(M, PETSC_VIEWER_STDOUT_WORLD);
+
+        std::cout << m_K << std::endl;
+        MatView(K, PETSC_VIEWER_STDOUT_WORLD);
+
         EPS eps; /* eigenproblem solver context */
 
         EPSCreate(PETSC_COMM_WORLD, &eps);
-        EPSSetOperators(eps, m_K, m_M);
+        EPSSetOperators(eps, K, M);
         EPSSetProblemType(eps, EPS_GNHEP);
-        EPSSetFromOptions(eps);
+        EPSSetType(eps, EPSKRYLOVSCHUR);
+        EPSSetConvergenceTest(eps, EPS_CONV_ABS);
+        EPSSetTolerances(eps, tol, 500); //todo: add max iteration for outer and inner
+        EPSSetWhichEigenpairs(eps, EPS_LARGEST_MAGNITUDE);
 
         Vec v0_petsc; /* initial vector */
+        MatCreateVecs(M, NULL, &v0_petsc);
         //copy from eigen vector
-        VecPlaceArray(v0_petsc, v0.data());
+        VecPlaceArray(v0_petsc, v.data());
+
+        std::cout << v << std::endl;
+        VecView(v0_petsc, PETSC_VIEWER_STDOUT_WORLD);
+
         EPSSetInitialSpace(eps, 1, &v0_petsc);
+
+        std::cout << "test1" << std::endl;
+
+        EPSSolve(eps);
+
+        std::cout << "test2" << std::endl;
+
+        PetscInt nconv;
+        PetscScalar kr, ki;
+        PetscReal error, re, im;
+        Vec xr, xi;
+        MatCreateVecs(M, NULL, &xr);
+        MatCreateVecs(M, NULL, &xi);
+
+        EPSGetConverged(eps, &nconv);
+        PetscPrintf(PETSC_COMM_WORLD, " Number of converged eigenpairs: %" PetscInt_FMT "\n\n", nconv);
+
+        for (int i = 0; i < nconv; i++)
+        {
+            /*
+         Get converged eigenpairs: i-th eigenvalue is stored in kr (real part) and
+         ki (imaginary part)
+       */
+            EPSGetEigenpair(eps, i, &kr, &ki, xr, xi);
+            /*
+          Compute the relative error associated to each eigenpair
+       */
+            EPSComputeError(eps, i, EPS_ERROR_RELATIVE, &error);
+#if defined(PETSC_USE_COMPLEX)
+            re = PetscRealPart(kr);
+            im = PetscImaginaryPart(kr);
+#else
+            re = kr;
+            im = ki;
+#endif
+            if (im != 0.0)
+                PetscPrintf(PETSC_COMM_WORLD, " %9f%+9fi %12g\n", (double)re, (double)im, (double)error);
+            else
+                PetscPrintf(PETSC_COMM_WORLD, "   %12f       %12g\n", (double)re, (double)error);
+        }
+        PetscPrintf(PETSC_COMM_WORLD, "\n");
+        EPSDestroy(&eps);
+        SlepcFinalize();
     }
 
 } // namespace solver

@@ -478,10 +478,9 @@ namespace operators
 
         MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
         MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
-
-        // MatView(A, PETSC_VIEWER_STDOUT_WORLD);
     }
 
+    //REALLY SLOW, do not use it !!!! we convert eigen matrix to petsc one in the solve...
     template <>
     inline Mat matrix_from_coeff(const std::vector<Triplet> &coefficients, int matrix_size)
     {
@@ -490,7 +489,6 @@ namespace operators
             IsRowMajor = Eigen::SparseMatrix<double>::IsRowMajor
         };
 
-        // std::vector<PetscInt> wi(matrix_size);
         typename Eigen::SparseMatrix<double>::IndexVector wi(matrix_size);
 
         // pass 1: count the nnz per inner-vector
@@ -498,7 +496,6 @@ namespace operators
         for (auto it(coefficients.begin()); it != coefficients.end(); ++it)
         {
             eigen_assert(it->row() >= 0 && it->row() < mat.rows() && it->col() >= 0 && it->col() < mat.cols());
-            // wi[IsRowMajor ? it->col() : it->row()]++;
             wi(IsRowMajor ? it->col() : it->row())++;
         }
 
@@ -508,26 +505,24 @@ namespace operators
         MatSetSizes(A, PETSC_DECIDE, PETSC_DECIDE, matrix_size, matrix_size);
         MatSeqAIJSetPreallocation(A, 0, wi.data());
 
-        MatCreateSeqAIJ(PETSC_COMM_WORLD, matrix_size, matrix_size, 0, wi.data(), &A);
+        // MatCreateSeqAIJ(PETSC_COMM_WORLD, matrix_size, matrix_size, 0, wi.data(), &A);
         // matrix_from_coeff<Mat>(A, coefficients);
         PetscInt Istart, Iend;
         MatSetFromOptions(A);
         MatSetUp(A);
         MatGetOwnershipRange(A, &Istart, &Iend);
-        std::cout << matrix_size << std::endl;
 
         int i = 0;
         for (auto t : coefficients)
         {
             MatSetValue(A, t.row(), t.col(), t.value(), INSERT_VALUES);
-            // std::cout << i << "/" << coefficients.size() << "," << matrix_size << std::endl;
             i++;
         }
 
         MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY);
         MatAssemblyEnd(A, MAT_FINAL_ASSEMBLY);
 
-        MatView(A, PETSC_VIEWER_STDOUT_WORLD);
+        // MatView(A, PETSC_VIEWER_STDOUT_WORLD);
 
         return A;
     }
@@ -644,10 +639,8 @@ namespace operators
     inline Mat setup_m_operators(Mat &D, Tensor1D volumes, mat::Macrolib &macrolib)
     {
         auto M = operators::diff_removal_op<Mat, Tensor1D>(volumes, macrolib);
-        std::cout << "removal" << std::endl;
 
         auto S = operators::diff_scatering_op<Mat, Tensor1D>(volumes, macrolib);
-        std::cout << "scat" << std::endl;
 
         MatAXPY(M, -1.0, S, SAME_NONZERO_PATTERN);
         MatAXPY(M, -1.0, D, SAME_NONZERO_PATTERN);

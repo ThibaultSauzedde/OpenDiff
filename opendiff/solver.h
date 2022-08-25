@@ -49,9 +49,7 @@ namespace solver
 
             m_volumes = vol.reshape(one_dim);
             m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
-            std::cout << "fission" << std::endl;
             auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, dy, dz, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn);
-            std::cout << "fission" << std::endl;
             m_M = operators::setup_m_operators<>(D, m_volumes, macrolib);
         };
 
@@ -99,8 +97,11 @@ namespace solver
             return m_M;
         };
 
-        virtual void makeAdjoint() = 0;
-
+        virtual void makeAdjoint()
+        {
+            m_M = m_M.adjoint();
+            m_K = m_K.adjoint();
+        }
         virtual void solve(double tol = 1e-6, double tol_eigen_vectors = 1e-4, int nb_eigen_values = 1, const Eigen::VectorXd &v0 = Eigen::VectorXd()) = 0;
         vecd get_power(mat::Macrolib &macrolib);
     };
@@ -114,11 +115,10 @@ namespace solver
         SolverPowerIt(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn) : Solver(x, y, z, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn){};
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0) override;
-
-        void makeAdjoint() override;
     };
 
-    class SolverSlepc : public Solver<Mat>
+    // class SolverSlepc : public Solver<Eigen::SparseMatrix<double, Eigen::RowMajor>> // row major for MatCreateSeqAIJWithArrays
+    class SolverSlepc : public Solver<Eigen::SparseMatrix<double, Eigen::RowMajor>> // row major for MatCreateSeqAIJWithArrays
     {
     public:
         SolverSlepc(const Solver &copy) : Solver(copy){};
@@ -127,8 +127,6 @@ namespace solver
         SolverSlepc(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn) : Solver(x, y, z, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn){};
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0) override;
-
-        void makeAdjoint() override;
     };
 
 } // namespace solver

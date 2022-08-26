@@ -137,8 +137,8 @@ namespace operators
                 // sub diagonal terms
                 if (i != nb_cells - 1)
                 {
-                    coefficients.push_back(Triplet(id, id + nb_groups, C(i, g)));
-                    coefficients.push_back(Triplet(id + nb_groups, id, C(i, g)));
+                    coefficients.push_back(Triplet(id, id + nb_groups, C(i + 1, g)));
+                    coefficients.push_back(Triplet(id + nb_groups, id, C(i + 1, g)));
                 }
             }
         }

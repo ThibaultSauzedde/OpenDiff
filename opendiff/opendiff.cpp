@@ -3,6 +3,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/eigen.h>
 #include <pybind11/stl.h>
+#include <pybind11/iostream.h>
 
 #include <vector>
 #include <string_view>
@@ -12,6 +13,8 @@
 
 #include <petscmat.h>
 #include <slepceps.h>
+
+#include "spdlog/spdlog.h"
 
 #include "materials.h"
 #include "macrolib.h"
@@ -60,6 +63,15 @@ py::array_t<T> eigenTensor3D(py::array_t<T> inArray)
 
 PYBIND11_MODULE(opendiff, m)
 {
+    py::enum_<spdlog::level::level_enum>(m, "log_level")
+        .value("debug", spdlog::level::debug)
+        .value("warning", spdlog::level::warn)
+        .value("error", spdlog::level::err)
+        .export_values();
+
+    m.def("set_log_level", spdlog::set_level);
+    py::add_ostream_redirect(m, "ostream_redirect"); // if needed by the user
+
     py::module eigen = m.def_submodule("eigen", "A simple eigen tensor binding");
     eigen.def("eigenTensor3D", &eigenTensor3D<double>, py::return_value_policy::move,
               py::arg("inArray"));
@@ -76,7 +88,7 @@ PYBIND11_MODULE(opendiff, m)
         .def("getMaterials", &mat::Materials::getMaterials)
         .def("getValue", &mat::Materials::getValue)
         .def("getNbGroups", py::overload_cast<>(&mat::Materials::getNbGroups, py::const_))
-        .def("getValue", &mat::Materials::getReactionIndex)
+        .def("getReactionIndex", &mat::Materials::getReactionIndex)
         .def("addMaterial", &mat::Materials::addMaterial);
 
     py::class_<mat::Macrolib>(materials, "Macrolib")
@@ -99,6 +111,8 @@ PYBIND11_MODULE(opendiff, m)
                                                             double, double, double, double, double, double>(&operators::diff_diffusion_op<SpMat, vecd>));
 
     py::module solver = m.def_submodule("solver", "A module for the solver.");
+    solver.def("init_slepc", solver::init_slepc);
+    solver.def("end_slepc", SlepcFinalize);
 
     py::class_<solver::SolverPowerIt>(solver, "SolverPowerIt")
         .def(py::init<const solver::SolverPowerIt &>())
@@ -112,7 +126,10 @@ PYBIND11_MODULE(opendiff, m)
         .def("getM", &solver::SolverPowerIt::getM)
         .def("solve", &solver::SolverPowerIt::solve,
              py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
-             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd());
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(),
+             py::arg("tol_inner") = 1e-6, py::arg("outer_max_iter") = 500,
+             py::arg("inner_max_iter") = 200, py::arg("inner_solver") = "BiCGSTAB",
+             py::arg("inner_precond") = "");
     // .def("get_power", &solver::SolverPowerIt::get_power); // maybe reformat it in python ???
 
     py::class_<solver::SolverSlepc>(solver, "SolverSlepc")
@@ -123,9 +140,12 @@ PYBIND11_MODULE(opendiff, m)
         .def("makeAdjoint", &solver::SolverSlepc::makeAdjoint)
         .def("getEigenValues", &solver::SolverSlepc::getEigenValues)
         .def("getEigenVectors", &solver::SolverSlepc::getEigenVectors) // maybe reformat it in python ???
-        .def("solve", &solver::SolverSlepc::solve,
+        .def("solve", &solver::SolverSlepc::solveIterative,
              py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
-             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd());
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(),
+             py::arg("tol_inner") = 1e-6, py::arg("outer_max_iter") = 500,
+             py::arg("inner_max_iter") = 200, py::arg("solver") = "krylovschur",
+             py::arg("inner_solver") = "ibcgs", py::arg("inner_precond") = "");
 
     // .def("get_power", &solver::SolverSlepc::get_power); // maybe reformat it in python ???
 }

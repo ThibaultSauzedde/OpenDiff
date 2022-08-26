@@ -4,6 +4,8 @@
 #include <Eigen/IterativeLinearSolvers>
 #include <unsupported/Eigen/IterativeSolvers>
 #include <slepceps.h>
+#include "spdlog/spdlog.h"
+#include <string>
 
 #include "solver.h"
 
@@ -23,9 +25,35 @@ namespace solver
         return c_map.slice(offsets_p, extents_p) - c_map.slice(offsets, extents);
     }
 
-    void SolverPowerIt::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0)
+    void init_slepc()
     {
-        //todo: add parmter for choosing the solver for ax =b
+        SlepcInitialize(NULL, NULL, NULL, NULL);
+    }
+
+    void SolverPowerIt::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
+                              double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+    {
+        if (inner_solver == "SparseLU")
+            SolverPowerIt::solveLU(tol, tol_eigen_vectors, nb_eigen_values, v0, outer_max_iter);
+        else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
+            SolverPowerIt::solveIterative<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0,
+                                                                                       tol_inner, outer_max_iter, inner_max_iter);
+        else if (inner_solver == "BiCGSTAB" && inner_precond.empty())
+            SolverPowerIt::solveIterative<Eigen::GMRES<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0,
+                                                               tol_inner, outer_max_iter, inner_max_iter);
+        else if (inner_solver == "GMRES" && inner_precond.empty())
+            SolverPowerIt::solveIterative<Eigen::BiCGSTAB<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0,
+                                                                  tol_inner, outer_max_iter, inner_max_iter);
+        else if (inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
+            SolverPowerIt::solveIterative<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0,
+                                                                                                tol_inner, outer_max_iter, inner_max_iter);
+        else
+            throw std::invalid_argument("The combinaison of inner_solver and inner_precond is not known");
+    }
+
+    // todo: find a way to do not repeat with solveIterative
+    void SolverPowerIt::solveLU(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, int outer_max_iter)
+    {
         int pblm_dim = static_cast<int>(m_M.rows());
         int v0_size = static_cast<int>(v0.size());
 
@@ -49,24 +77,18 @@ namespace solver
         double eigen_value = v.norm();
         double eigen_value_prec = eigen_value;
 
-        // Eigen::LeastSquaresConjugateGradient<SpMat> solver;
-        // Eigen::GMRES<SpMat> solver(m_M);
-        Eigen::BiCGSTAB<SpMat> solver;
+        Eigen::SparseLU<SpMat> solver; // can't be used with this template because of solveWithGuess
         solver.compute(m_M);
-        // Eigen::SparseLU<SpMat> solver;
-        // solver.analyzePattern(m_M);
-        // // Compute the numerical factorization
-        // solver.factorize(m_M);
-        // std::cout << m_M << std::endl;
 
         // outer iteration
-        while (r_tol > tol || r_tol_ev > tol_eigen_vectors)
+        int i = 0;
+        while (r_tol > tol || r_tol_ev > tol_eigen_vectors || i > outer_max_iter)
         {
+            spdlog::debug("----------------------------------------------------");
+            spdlog::debug("Outer iteration {}", i);
             auto b = m_K * v;
             // inner iteration
-            v = solver.solveWithGuess(b, v);
-            std::cout << "#iterations:     " << solver.iterations() << std::endl;
-            std::cout << "estimated error: " << solver.error() << std::endl;
+            v = solver.solve(b);
             eigen_value = v.norm();
             v = v / eigen_value;
             // std::cout << v << std::endl;
@@ -76,10 +98,17 @@ namespace solver
             r_tol_ev = abs((v - v_prec).maxCoeff());
             eigen_value_prec = eigen_value;
             v_prec = v;
-            std::cout << r_tol << " " << r_tol_ev << std::endl;
+            spdlog::debug("Estimated error in outter iteration (eigen value): {:.2e}", r_tol);
+            spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
+            i++;
         }
-
-        std::cout << "vp = " << eigen_value << std::endl;
+        spdlog::debug("----------------------------------------------------");
+        m_eigen_values.clear();
+        m_eigen_vectors.clear();
+        m_eigen_values.push_back(eigen_value);
+        m_eigen_vectors.push_back(v);
+        spdlog::debug("Number of outter iteration: {}", i);
+        spdlog::info("Eigen value = {:.5f}", eigen_value);
     }
 
     // void SolverSlepc::makeAdjoint()
@@ -87,17 +116,18 @@ namespace solver
     //     MatTranspose(m_M, MAT_INPLACE_MATRIX, &m_M);
     //     MatTranspose(m_K, MAT_INPLACE_MATRIX, &m_K);
     // }
-
-    void SolverSlepc::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0)
+    void SolverSlepc::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
+                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
     {
-        // MatGetSize(m_M, &nrows, &ncols);
-        SlepcInitialize(NULL, NULL, NULL, NULL);
+        SolverSlepc::solveIterative(tol, tol_eigen_vectors, nb_eigen_values, v0,
+                                    tol_inner, outer_max_iter, inner_max_iter, "krylovschur", inner_solver, inner_precond);
+    }
 
+    void SolverSlepc::solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
+                                     double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond)
+    {
         int pblm_dim = static_cast<int>(m_M.rows());
         int v0_size = static_cast<int>(v0.size());
-
-        float r_tol = 1e5;
-        float r_tol_ev = 1e5;
 
         Eigen::VectorXd v(v0);
 
@@ -108,69 +138,80 @@ namespace solver
         else if (v0_size != pblm_dim)
             throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
 
-        //convert eigen matrix to slepc one
-
-        // //add 0 to diagonal (mandatory with MatCreateSeqAIJWithArrays)
-        // for (int i{0}; i < pblm_dim; ++i)
-        // {
-        //     m_M.coeffRef(i, i) += 0.;
-        //     m_K.coeffRef(i, i) += 0.;
-        // }
-
+        // convert eigen matrix to slepc one
         m_M.makeCompressed();
         m_K.makeCompressed();
 
         Mat M;
         Mat K;
-
         MatCreateSeqAIJWithArrays(PETSC_COMM_WORLD, pblm_dim, pblm_dim, m_M.outerIndexPtr(), m_M.innerIndexPtr(), m_M.valuePtr(), &M);
         MatCreateSeqAIJWithArrays(PETSC_COMM_WORLD, pblm_dim, pblm_dim, m_K.outerIndexPtr(), m_K.innerIndexPtr(), m_K.valuePtr(), &K);
 
-        std::cout << m_M.rows() << std::endl;
-        std::cout << m_M.cols() << std::endl;
-
-        std::cout << m_M << std::endl;
-        MatView(M, PETSC_VIEWER_STDOUT_WORLD);
-
-        std::cout << m_K << std::endl;
-        MatView(K, PETSC_VIEWER_STDOUT_WORLD);
-
+        // solver creation
         EPS eps; /* eigenproblem solver context */
+        ST st;
+        KSP ksp;
+        PC pc;
 
         EPSCreate(PETSC_COMM_WORLD, &eps);
         EPSSetOperators(eps, K, M);
         EPSSetProblemType(eps, EPS_GNHEP);
-        EPSSetType(eps, EPSKRYLOVSCHUR);
+        EPSGetST(eps, &st);
+        STGetKSP(st, &ksp);
+        KSPGetPC(ksp, &pc);
+
+        if (solver == "power")
+            EPSSetType(eps, EPSPOWER);
+        else if (solver == "arnoldi")
+            EPSSetType(eps, EPSARNOLDI);
+        else if (solver == "arpack")
+            EPSSetType(eps, EPSARPACK);
+        else
+            EPSSetType(eps, EPSKRYLOVSCHUR);
+
+        if (inner_solver == "cgls")
+            KSPSetType(ksp, KSPCGLS);
+        else if (inner_solver == "ibcgs")
+            KSPSetType(ksp, KSPIBCGS);
+        else if (inner_solver == "bcgs")
+            KSPSetType(ksp, KSPBCGS);
+
+        if (inner_precond == "jacobi")
+            PCSetType(pc, PCJACOBI);
+        else if (inner_precond == "sor")
+            PCSetType(pc, PCSOR);
+        else if (inner_precond == "cholesky")
+            PCSetType(pc, PCCHOLESKY);
+        else if (inner_precond == "ilu")
+            PCSetType(pc, PCILU);
+
         EPSSetConvergenceTest(eps, EPS_CONV_ABS);
-        EPSSetTolerances(eps, tol, 500); //todo: add max iteration for outer and inner
+        EPSSetTolerances(eps, tol, outer_max_iter);
         EPSSetWhichEigenpairs(eps, EPS_LARGEST_MAGNITUDE);
+
+        KSPSetTolerances(ksp, tol_inner, PETSC_DEFAULT, PETSC_DEFAULT, inner_max_iter);
 
         Vec v0_petsc; /* initial vector */
         MatCreateVecs(M, NULL, &v0_petsc);
-        //copy from eigen vector
+        // copy from eigen vector
         VecPlaceArray(v0_petsc, v.data());
-
-        std::cout << v << std::endl;
-        VecView(v0_petsc, PETSC_VIEWER_STDOUT_WORLD);
 
         EPSSetInitialSpace(eps, 1, &v0_petsc);
 
-        std::cout << "test1" << std::endl;
-
         EPSSolve(eps);
-
-        std::cout << "test2" << std::endl;
 
         PetscInt nconv;
         PetscScalar kr, ki;
         PetscReal error, re, im;
         Vec xr, xi;
+        PetscScalar *xrdata;
         MatCreateVecs(M, NULL, &xr);
         MatCreateVecs(M, NULL, &xi);
 
+        m_eigen_values.clear();
+        m_eigen_vectors.clear();
         EPSGetConverged(eps, &nconv);
-        PetscPrintf(PETSC_COMM_WORLD, " Number of converged eigenpairs: %" PetscInt_FMT "\n\n", nconv);
-
+        spdlog::info("Number of converged eigenpairs: {}", nconv);
         for (int i = 0; i < nconv; i++)
         {
             /*
@@ -190,13 +231,18 @@ namespace solver
             im = ki;
 #endif
             if (im != 0.0)
-                PetscPrintf(PETSC_COMM_WORLD, " %9f%+9fi %12g\n", (double)re, (double)im, (double)error);
+                spdlog::info("Eigen value {} = {:.5f} i {:.5f} +-  {:.2e}", i, (double)re, (double)im, (double)error);
             else
-                PetscPrintf(PETSC_COMM_WORLD, "   %12f       %12g\n", (double)re, (double)error);
+                spdlog::info("Eigen value {} = {:.5f} +- {:.2e}", i, (double)re, (double)error);
+
+            m_eigen_values.push_back((double)re);
+
+            VecGetArray(xr, &xrdata);
+            auto xr_eigen = Eigen::Map<Eigen::VectorXd>(xrdata, pblm_dim);
+            VecRestoreArray(xr, &xrdata);
+            m_eigen_vectors.push_back(xr_eigen);
         }
-        PetscPrintf(PETSC_COMM_WORLD, "\n");
         EPSDestroy(&eps);
-        SlepcFinalize();
     }
 
 } // namespace solver

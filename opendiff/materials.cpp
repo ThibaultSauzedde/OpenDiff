@@ -113,7 +113,7 @@ namespace mat
             throw std::invalid_argument("The number of reaction is different in the array and the name's list!");
 
         // reorder the array
-        Eigen::ArrayXXd new_mat = mat(Eigen::all, ids);
+        Eigen::ArrayXXd new_mat = mat(Eigen::placeholders::all, ids);
 
         // add the removal xs section
         new_mat.conservativeResize(mat.rows(), mat.cols() + 1);
@@ -122,7 +122,7 @@ namespace mat
         int id_sigr = m_reac2id["SIGR"]; // last id
 
         // sigr = siga
-        new_mat(Eigen::all, id_sigr) = new_mat(Eigen::all, id_siga);
+        new_mat(Eigen::placeholders::all, id_sigr) = new_mat(Eigen::placeholders::all, id_siga);
 
         // add transfert section to other groups
         for (int grp_orig{0}; grp_orig < m_nb_groups; ++grp_orig)

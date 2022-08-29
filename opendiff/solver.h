@@ -101,6 +101,17 @@ namespace solver
             return m_M;
         };
 
+        const auto getVolumes() const
+        {
+            return m_volumes;
+        };        
+
+        const auto getVolumesPython() const
+        {
+            return py::array_t<double, py::array::f_style>({m_volumes.dimension(0)},
+                                                            m_volumes.data());
+        };    
+
         virtual void makeAdjoint()
         {
             m_M = m_M.adjoint();
@@ -129,7 +140,7 @@ namespace solver
         void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
                             double tol_inner, int outer_max_iter, int inner_max_iter)
         {
-            // todo: add parmter for choosing the solver for ax =b
+            
             int pblm_dim = static_cast<int>(m_M.rows());
             int v0_size = static_cast<int>(v0.size());
 
@@ -150,9 +161,15 @@ namespace solver
             if (nb_eigen_values != 1)
                 throw std::invalid_argument("Only one eigen value can be computed with PI!");
 
+            spdlog::debug("Tolerance in outter iteration (eigen value): {:.2e}", tol);
+            spdlog::debug("Tolerance in outter iteration (eigen vector): {:.2e}", tol_eigen_vectors);
+            spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
+            spdlog::debug("Max. outer iteration : {}", outer_max_iter);
+            spdlog::debug("Max. inner iteration : {}", inner_max_iter);
+
             double eigen_value = v.norm();
             double eigen_value_prec = eigen_value;
-
+            
             T solver;
             solver.setMaxIterations(inner_max_iter);
             solver.setTolerance(tol_inner);
@@ -160,7 +177,7 @@ namespace solver
 
             // outer iteration
             int i = 0;
-            while (r_tol > tol || r_tol_ev > tol_eigen_vectors || i > outer_max_iter)
+            while ((r_tol > tol || r_tol_ev > tol_eigen_vectors) && i < outer_max_iter)
             {
                 spdlog::debug("----------------------------------------------------");
                 spdlog::debug("Outer iteration {}", i);
@@ -171,13 +188,13 @@ namespace solver
                 spdlog::debug("Estimated error in inner iteration: {:.2e}", solver.error());
                 eigen_value = v.norm();
                 v = v / eigen_value;
-                // std::cout << v << std::endl;
 
                 // precision computation
                 r_tol = std::abs(eigen_value - eigen_value_prec);
                 r_tol_ev = abs((v - v_prec).maxCoeff());
                 eigen_value_prec = eigen_value;
                 v_prec = v;
+                spdlog::debug("Eigen value = {:.5f}", eigen_value);
                 spdlog::debug("Estimated error in outter iteration (eigen value): {:.2e}", r_tol);
                 spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
                 i++;

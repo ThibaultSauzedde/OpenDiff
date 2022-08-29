@@ -41,7 +41,7 @@ py::array_t<T> eigenTensor3D(py::array_t<T> inArray)
     // the second template argument is the rank of the tensor and has to be known at compile time
     Eigen::TensorMap<Eigen::Tensor<T, 3>> in_tensor(data, shape[0], shape[1], shape[2]);
 
-    return py::array_t<T, py::array::c_style>(shape,
+    return py::array_t<T, py::array::f_style>(shape,
                                               in_tensor.data()); // data pointer
 }
 
@@ -119,6 +119,7 @@ PYBIND11_MODULE(opendiff, m)
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
+        .def("getVolumes", &solver::SolverPowerIt::getVolumesPython)
         .def("makeAdjoint", &solver::SolverPowerIt::makeAdjoint)
         .def("getEigenValues", &solver::SolverPowerIt::getEigenValues)
         .def("getEigenVectors", &solver::SolverPowerIt::getEigenVectors) // maybe reformat it in python ???
@@ -127,8 +128,8 @@ PYBIND11_MODULE(opendiff, m)
         .def("solve", &solver::SolverPowerIt::solve,
              py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(),
-             py::arg("tol_inner") = 1e-6, py::arg("outer_max_iter") = 500,
-             py::arg("inner_max_iter") = 200, py::arg("inner_solver") = "BiCGSTAB",
+             py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
+             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
              py::arg("inner_precond") = "");
     // .def("get_power", &solver::SolverPowerIt::get_power); // maybe reformat it in python ???
 
@@ -137,15 +138,16 @@ PYBIND11_MODULE(opendiff, m)
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
+        .def("getVolumes", &solver::SolverSlepc::getVolumesPython)
         .def("makeAdjoint", &solver::SolverSlepc::makeAdjoint)
         .def("getEigenValues", &solver::SolverSlepc::getEigenValues)
         .def("getEigenVectors", &solver::SolverSlepc::getEigenVectors) // maybe reformat it in python ???
         .def("solve", &solver::SolverSlepc::solveIterative,
              py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(),
-             py::arg("tol_inner") = 1e-6, py::arg("outer_max_iter") = 500,
-             py::arg("inner_max_iter") = 200, py::arg("solver") = "krylovschur",
-             py::arg("inner_solver") = "ibcgs", py::arg("inner_precond") = "");
+             py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
+             py::arg("inner_max_iter") = 20, py::arg("solver") = "krylovschur",
+             py::arg("inner_solver") = "", py::arg("inner_precond") = "");
 
     // .def("get_power", &solver::SolverSlepc::get_power); // maybe reformat it in python ???
 }

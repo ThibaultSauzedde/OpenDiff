@@ -1,9 +1,8 @@
-openDiff.cpython-37m-x86_64-linux-gnu.so
+*.so
 build/
-openDiff.egg-info/
-opendiff.cpython-37m-x86_64-linux-gnu.so
 .vscode/c_cpp_properties.json
 .vscode/settings.json
 opendiff.egg-info/
 tests/.ipynb_checkpoints/materials-checkpoint.ipynb
 opendiff.cpython-38-x86_64-linux-gnu.so
+*.pyc

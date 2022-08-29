@@ -6,6 +6,7 @@
 #include <string>
 #include <map>
 #include <iostream>
+#include "spdlog/spdlog.h"
 
 #include <pybind11/eigen.h>
 
@@ -187,7 +188,7 @@ namespace operators
 
                 if (i == 0)
                 {
-                    C_x.chip(j, 1).chip(i, 1) = C_x0.chip(j, 1); // C_x.chip(j, 1).chip(i, 1) == C_x.slice(offsets, extents) bit it is lvalue !
+                    C_x.chip(j, 1).chip(i, 1) = C_x0.chip(j, 1); // C_x.chip(j, 1).chip(i, 1) == C_x.slice(offsets, extents) but it is lvalue !
                 }
                 else if (i == dx_size)
                 {
@@ -201,7 +202,7 @@ namespace operators
             }
         }
 
-        Eigen::Tensor<double, 3> C_y(nb_groups, dy_size, dx_size + 1);
+        Eigen::Tensor<double, 3> C_y(nb_groups, dy_size+1, dx_size);
         for (int i{0}; i < dx_size; ++i)
         {
             for (int j{0}; j < dy_size + 1; ++j)
@@ -291,9 +292,9 @@ namespace operators
 
         // down and up C
         auto C_y0 = 2 * (diff_coeff_3d.chip(0, 2) * (1 - albedo_y0)) /
-                    (4 * diff_coeff_3d.chip(0, 2) * (1 + albedo_y0) + dx[0] * (1 - albedo_y0));
+                    (4 * diff_coeff_3d.chip(0, 2) * (1 + albedo_y0) + dy[0] * (1 - albedo_y0));
         auto C_yn = 2 * (diff_coeff_3d.chip(dy_size - 1, 2) * (1 - albedo_yn)) /
-                    (4 * diff_coeff_3d.chip(dy_size - 1, 2) * (1 + albedo_yn) + dx[dy_size - 1] * (1 - albedo_yn));
+                    (4 * diff_coeff_3d.chip(dy_size - 1, 2) * (1 + albedo_yn) + dy[dy_size - 1] * (1 - albedo_yn));
 
         // down and up C
         auto C_z0 = 2 * (diff_coeff_3d.chip(0, 1) * (1 - albedo_z0)) /
@@ -347,11 +348,11 @@ namespace operators
                     Eigen::array<Eigen::Index, 3> offsets_c = {0, k, i};
                     Eigen::array<Eigen::Index, 3> extents_c = {nb_groups, 1, 1};
 
-                    if (i == 0)
+                    if (j == 0)
                     {
                         C_y.chip(k, 1).chip(j, 1).chip(i, 1) = C_y0.slice(offsets_c, extents_c); // C_y.chip(j, 1).chip(i, 1) == C_y.slice(offsets, extents) bit it is lvalue !
                     }
-                    else if (i == dx_size)
+                    else if (j == dy_size)
                     {
                         C_y.chip(k, 1).chip(j, 1).chip(i, 1) = C_yn.slice(offsets_c, extents_c);
                     }
@@ -378,11 +379,11 @@ namespace operators
                     Eigen::array<Eigen::Index, 3> offsets_c = {0, j, i};
                     Eigen::array<Eigen::Index, 3> extents_c = {nb_groups, 1, 1};
 
-                    if (i == 0)
+                    if (k == 0)
                     {
                         C_z.chip(k, 1).chip(j, 1).chip(i, 1) = C_z0.slice(offsets_c, extents_c); // C_z.chip(j, 1).chip(i, 1) == C_z.slice(offsets, extents) bit it is lvalue !
                     }
-                    else if (i == dx_size)
+                    else if (k == dz_size)
                     {
                         C_z.chip(k, 1).chip(j, 1).chip(i, 1) = C_zn.slice(offsets_c, extents_c);
                     }
@@ -394,6 +395,11 @@ namespace operators
                 }
             }
         }
+
+
+        // std::cout << C_x.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
+        // std::cout << C_y.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
+        // std::cout << C_z.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
 
         // create the coefficients (only diagonals and sub diagonals)
         std::vector<Triplet> coefficients{};

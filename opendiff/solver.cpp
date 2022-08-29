@@ -33,6 +33,8 @@ namespace solver
     void SolverPowerIt::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
                               double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
     {
+        spdlog::debug("Inner solver : {}", inner_solver);
+        spdlog::debug("Inner precond : {}", inner_precond);
         if (inner_solver == "SparseLU")
             SolverPowerIt::solveLU(tol, tol_eigen_vectors, nb_eigen_values, v0, outer_max_iter);
         else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
@@ -82,7 +84,7 @@ namespace solver
 
         // outer iteration
         int i = 0;
-        while (r_tol > tol || r_tol_ev > tol_eigen_vectors || i > outer_max_iter)
+            while ((r_tol > tol || r_tol_ev > tol_eigen_vectors) && i < outer_max_iter)
         {
             spdlog::debug("----------------------------------------------------");
             spdlog::debug("Outer iteration {}", i);
@@ -98,6 +100,7 @@ namespace solver
             r_tol_ev = abs((v - v_prec).maxCoeff());
             eigen_value_prec = eigen_value;
             v_prec = v;
+            spdlog::debug("Eigen value = {:.5f}", eigen_value);
             spdlog::debug("Estimated error in outter iteration (eigen value): {:.2e}", r_tol);
             spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
             i++;
@@ -138,6 +141,16 @@ namespace solver
         else if (v0_size != pblm_dim)
             throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
 
+        spdlog::debug("Solver : {}", solver);
+        spdlog::debug("Inner solver : {}", inner_solver);
+        spdlog::debug("Inner precond : {}", inner_precond);
+
+        spdlog::debug("Tolerance in outter iteration (eigen value): {:.2e}", tol);
+        // spdlog::debug("Tolerance in outter iteration (eigen vector): {:.2e}", tol_eigen_vectors);
+        spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
+        spdlog::debug("Max. outer iteration : {}", outer_max_iter);
+        spdlog::debug("Max. inner iteration : {}", inner_max_iter);
+
         // convert eigen matrix to slepc one
         m_M.makeCompressed();
         m_K.makeCompressed();
@@ -156,6 +169,9 @@ namespace solver
         EPSCreate(PETSC_COMM_WORLD, &eps);
         EPSSetOperators(eps, K, M);
         EPSSetProblemType(eps, EPS_GNHEP);
+        EPSSetDimensions(eps, nb_eigen_values, PETSC_DECIDE, PETSC_DECIDE);
+        EPSSetFromOptions(eps);
+
         EPSGetST(eps, &st);
         STGetKSP(st, &ksp);
         KSPGetPC(ksp, &pc);
@@ -189,7 +205,7 @@ namespace solver
         EPSSetTolerances(eps, tol, outer_max_iter);
         EPSSetWhichEigenpairs(eps, EPS_LARGEST_MAGNITUDE);
 
-        KSPSetTolerances(ksp, tol_inner, PETSC_DEFAULT, PETSC_DEFAULT, inner_max_iter);
+        // KSPSetTolerances(ksp, tol_inner, PETSC_DEFAULT, PETSC_DEFAULT, inner_max_iter);
 
         Vec v0_petsc; /* initial vector */
         MatCreateVecs(M, NULL, &v0_petsc);
@@ -198,20 +214,74 @@ namespace solver
 
         EPSSetInitialSpace(eps, 1, &v0_petsc);
 
+        // EPSMonitorSet(eps, EPSMonitorAll, NULL, NULL);
+        PetscViewerAndFormat *monviewer;
+        PetscViewerAndFormatCreate(PETSC_VIEWER_STDOUT_WORLD, PETSC_VIEWER_DEFAULT, &monviewer);
+        // EPSMonitorSet(eps, EPSMonitorAll, monviewer, (PetscErrorCode(*)(void **))PetscViewerDestroy);
+        // EPSMonitorSet(eps, (PetscErrorCode(*)(EPS, PetscInt, PetscInt, PetscScalar *, PetscScalar *, PetscReal *, PetscInt, void *))EPSMonitorAllDrawLG, monviewer,
+        //               (PetscErrorCode(*)(void **))PetscViewerAndFormatDestroy);
+        EPSMonitorSet(eps, (PetscErrorCode(*)(EPS, PetscInt, PetscInt, PetscScalar *, PetscScalar *, PetscReal *, PetscInt, void *))EPSMonitorAll, monviewer,
+                      (PetscErrorCode(*)(void **))PetscViewerAndFormatDestroy);
+        
+        EPSSetTrackAll(eps, PETSC_TRUE);
+
+
+        // EPSSetTrueResidual(eps, PETSC_TRUE);
+
+        //balancing
+        // EPSSetBalance(eps, EPS_BALANCE_ONESIDE, 100, 1e-5);
+
         EPSSolve(eps);
 
-        PetscInt nconv;
+        PetscInt nconv, its;
         PetscScalar kr, ki;
         PetscReal error, re, im;
         Vec xr, xi;
         PetscScalar *xrdata;
+        EPSConvergedReason reason;
         MatCreateVecs(M, NULL, &xr);
         MatCreateVecs(M, NULL, &xi);
 
         m_eigen_values.clear();
         m_eigen_vectors.clear();
         EPSGetConverged(eps, &nconv);
+        EPSGetIterationNumber(eps,&its);
+        EPSGetConvergedReason(eps, &reason);
         spdlog::info("Number of converged eigenpairs: {}", nconv);
+        spdlog::debug("Number of outter iteration: {}", its);
+
+        std::string str_reason{};
+
+        switch (reason)
+        {
+        case EPS_CONVERGED_TOL:
+            str_reason = "tolerance";
+            break;
+
+        case EPS_CONVERGED_USER:
+            str_reason = "tolerance (user)";
+            break;
+
+        case EPS_DIVERGED_ITS:
+            str_reason = "failure";
+            break;
+
+        case EPS_DIVERGED_BREAKDOWN:
+            str_reason = "failure";
+            break;
+
+        case EPS_DIVERGED_SYMMETRY_LOST:
+            str_reason = "failure";
+            break;
+        case EPS_CONVERGED_ITERATING:
+            str_reason = "failure";
+            break;
+
+        default:
+            str_reason = "unknown";
+        }
+        spdlog::debug("Slepc converged reason: {}", str_reason);
+
         for (int i = 0; i < nconv; i++)
         {
             /*
@@ -222,7 +292,7 @@ namespace solver
             /*
           Compute the relative error associated to each eigenpair
        */
-            EPSComputeError(eps, i, EPS_ERROR_RELATIVE, &error);
+            EPSComputeError(eps, i, EPS_ERROR_ABSOLUTE, &error);
 #if defined(PETSC_USE_COMPLEX)
             re = PetscRealPart(kr);
             im = PetscImaginaryPart(kr);

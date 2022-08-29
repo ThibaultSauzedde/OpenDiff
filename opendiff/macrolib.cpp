@@ -89,16 +89,17 @@ namespace mat
     {
         Eigen::Tensor<double, 3> values = getValues(i_grp, reac_name);
 
-        return py::array_t<double, py::array::c_style>({values.dimension(0), values.dimension(1), values.dimension(2)},
-                                                       values.data());
+        return py::array_t<double, py::array::f_style>({values.dimension(0), values.dimension(1), values.dimension(2)},
+                                                        values.data());
     }
+
     // todo fix issue with view and use reference for the return param !
     const py::array_t<double> Macrolib::getValues1DPython(const int i_grp, const std::string &reac_name) const
     {
         auto values_1d = getValues1D(i_grp, reac_name);
 
-        return py::array_t<double, py::array::c_style>({values_1d.dimension(0)},
-                                                       values_1d.data());
+        return py::array_t<double, py::array::f_style>({values_1d.dimension(0)},
+                                                        values_1d.data());
     }
 
 } // namespace mat

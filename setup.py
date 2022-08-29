@@ -36,7 +36,8 @@ ext_modules = [
                        'opendiff/macrolib.cpp', 'opendiff/diff_operator.cpp', 'opendiff/solver.cpp'],
                       define_macros=[('VERSION_INFO', __version__)],
                       include_dirs=[
-                          '/home/ts249161/anaconda3/envs/opendiff/include/eigen3'],
+                            '/home/ts249161/dev/these/eigen'],
+                        #   '/home/ts249161/anaconda3/envs/opendiff/include/eigen3'],
                       libraries=['petsc', 'slepc'],
                       #   library_dirs=[
                       #       "/home/ts249161/anaconda3/envs/opendiff/x86_64-conda-linux-gnu/sysroot/lib/"],

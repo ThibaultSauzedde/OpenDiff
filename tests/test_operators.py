@@ -111,7 +111,7 @@ def test_diff_removal_3d(macrolib_3d, datadir):
     dz = z_mesh[1:]-z_mesh[:-1]
     surf = np.multiply.outer(dx, dy)
     vol = np.multiply.outer(surf, dz)
-    vol_1d = vol.reshape(-1, order='F')
+    vol_1d = vol.reshape(-1)
     A = op.diff_removal_op(vol_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "r_3d.npz")
     assert allclose_sparse(A, A_ref)
@@ -124,7 +124,7 @@ def test_diff_fission_3d(macrolib_3d, datadir):
     dz = z_mesh[1:]-z_mesh[:-1]
     surf = np.multiply.outer(dx, dy)
     vol = np.multiply.outer(surf, dz)
-    vol_1d = vol.reshape(-1, order='F')
+    vol_1d = vol.reshape(-1)
     A = op.diff_fission_op(vol_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "f_3d.npz")
     assert allclose_sparse(A, A_ref)
@@ -137,7 +137,7 @@ def test_diff_scatering_3d(macrolib_3d, datadir):
     dz = z_mesh[1:]-z_mesh[:-1]
     surf = np.multiply.outer(dx, dy)
     vol = np.multiply.outer(surf, dz)
-    vol_1d = vol.reshape(-1, order='F')
+    vol_1d = vol.reshape(-1)
 
     A = op.diff_scatering_op(vol_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "s_3d.npz")

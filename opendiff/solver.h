@@ -12,11 +12,13 @@
 namespace solver
 {
 
-    using SpMat = Eigen::SparseMatrix<double>; // declares a column-major sparse matrix type of double
+    using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>; // declares a column-major sparse matrix type of double
     using vecd = std::vector<double>;
-    using Tensor1D = Eigen::Tensor<double, 1>;
+    using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
+    using Tensor2D = Eigen::Tensor<double, 2, Eigen::RowMajor>;
+    using Tensor3D = Eigen::Tensor<double, 3, Eigen::RowMajor>;
 
-    Eigen::Tensor<double, 1> delta_coord(vecd &coord);
+    Tensor1D delta_coord(vecd &coord);
 
     void init_slepc();
 
@@ -48,7 +50,7 @@ namespace solver
             auto dy = delta_coord(y);
             auto dz = delta_coord(z);
             Eigen::array<Eigen::IndexPair<long>, 0> empty_index_list = {};
-            Eigen::Tensor<double, 3> vol = dx.contract(dy, empty_index_list).contract(dz, empty_index_list);
+            Tensor3D vol = dx.contract(dy, empty_index_list).contract(dz, empty_index_list);
             Eigen::array<Eigen::DenseIndex, 1> one_dim({static_cast<int>(vol.size())});
 
             m_volumes = vol.reshape(one_dim);
@@ -64,7 +66,7 @@ namespace solver
             auto dx = delta_coord(x);
             auto dy = delta_coord(y);
             Eigen::array<Eigen::IndexPair<long>, 0> empty_index_list = {};
-            Eigen::Tensor<double, 2> surf = dx.contract(dy, empty_index_list);
+            Tensor2D surf = dx.contract(dy, empty_index_list);
             Eigen::array<Eigen::DenseIndex, 1> one_dim({static_cast<int>(surf.size())});
 
             m_volumes = surf.reshape(one_dim);
@@ -108,7 +110,7 @@ namespace solver
 
         const auto getVolumesPython() const
         {
-            return py::array_t<double, py::array::f_style>({m_volumes.dimension(0)},
+            return py::array_t<double, py::array::c_style>({m_volumes.dimension(0)},
                                                             m_volumes.data());
         };    
 
@@ -209,8 +211,7 @@ namespace solver
         }
     };
 
-    // class SolverSlepc : public Solver<Eigen::SparseMatrix<double, Eigen::RowMajor>>
-    class SolverSlepc : public Solver<Eigen::SparseMatrix<double, Eigen::RowMajor>> // row major for MatCreateSeqAIJWithArrays
+    class SolverSlepc : public Solver<SpMat> // row major for MatCreateSeqAIJWithArrays
     {
     public:
         SolverSlepc(const Solver &copy) : Solver(copy){};

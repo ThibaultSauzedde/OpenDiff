@@ -263,5 +263,5 @@ def test_macrolib_3d(macrolib_3d):
         [0.04, 0.04, 0.04, 0.04, 0.  , 0.  , 0.  , 0.  , 0.  ]]])
     npt.assert_almost_equal(macrolib.getValues(1, '2'), tr_12)
 
-    npt.assert_almost_equal(macrolib.getValues1D(2, 'NU_SIGF'), np.array(nusif_2).reshape(-1, order='F'))
-    npt.assert_almost_equal(macrolib.getValues1D(1, '2'), np.array(tr_12).reshape(-1, order='F'))
+    npt.assert_almost_equal(macrolib.getValues1D(2, 'NU_SIGF'), np.array(nusif_2).reshape(-1))
+    npt.assert_almost_equal(macrolib.getValues1D(1, '2'), np.array(tr_12).reshape(-1))

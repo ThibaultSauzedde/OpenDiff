@@ -23,7 +23,7 @@
 
 namespace py = pybind11;
 using vecd = std::vector<double>;
-using SpMat = Eigen::SparseMatrix<double>; // declares a column-major sparse matrix type of double
+using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>; // declares a column-major sparse matrix type of double
 
 // return 3 dimensional ndarray
 template <class T>
@@ -41,7 +41,7 @@ py::array_t<T> eigenTensor3D(py::array_t<T> inArray)
     // the second template argument is the rank of the tensor and has to be known at compile time
     Eigen::TensorMap<Eigen::Tensor<T, 3>> in_tensor(data, shape[0], shape[1], shape[2]);
 
-    return py::array_t<T, py::array::f_style>(shape,
+    return py::array_t<T, py::array::c_style>(shape,
                                               in_tensor.data()); // data pointer
 }
 

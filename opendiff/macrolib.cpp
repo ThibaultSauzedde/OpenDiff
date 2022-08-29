@@ -13,7 +13,9 @@ namespace py = pybind11;
 
 namespace mat
 {
-    Macrolib::Macrolib(const mat::Materials &materials, const Eigen::Tensor<std::string, 3> &geometry)
+    using Tensor3D = Eigen::Tensor<double, 3, Eigen::RowMajor>;
+
+    Macrolib::Macrolib(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry)
     {
         setup(materials, geometry);
     }
@@ -22,7 +24,7 @@ namespace mat
     {
         //copy of the geometry in a tensor, it does not cost that much :)
 
-        Eigen::Tensor<std::string, 3> geometry_tensor(static_cast<int>(geometry.size()), static_cast<int>(geometry[0].size()),
+        Eigen::Tensor<std::string, 3, Eigen::RowMajor> geometry_tensor(static_cast<int>(geometry.size()), static_cast<int>(geometry[0].size()),
                                                       static_cast<int>(geometry[0][0].size()));
 
         int i = 0, j = 0, k = 0;
@@ -54,7 +56,7 @@ namespace mat
         setup(materials, geometry_tensor);
     }
 
-    void Macrolib::setup(const mat::Materials &materials, const Eigen::Tensor<std::string, 3> &geometry)
+    void Macrolib::setup(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry)
     {
         m_nb_groups = materials.getNbGroups();
         m_reac_names = materials.getReacNames();
@@ -67,7 +69,7 @@ namespace mat
         {
             for (auto reac_name : m_reac_names)
             {
-                Eigen::Tensor<double, 3> reac_i(dim_z, dim_y, dim_x); // z, y, x
+                Tensor3D reac_i(dim_z, dim_y, dim_x); // z, y, x
                 // loop on the geometry
                 for (int i = 0; i < dim_z; ++i)
                 {
@@ -87,9 +89,9 @@ namespace mat
 
     const py::array_t<double> Macrolib::getValuesPython(const int i_grp, const std::string &reac_name) const
     {
-        Eigen::Tensor<double, 3> values = getValues(i_grp, reac_name);
+        Tensor3D values = getValues(i_grp, reac_name);
 
-        return py::array_t<double, py::array::f_style>({values.dimension(0), values.dimension(1), values.dimension(2)},
+        return py::array_t<double, py::array::c_style>({values.dimension(0), values.dimension(1), values.dimension(2)},
                                                         values.data());
     }
 
@@ -98,7 +100,7 @@ namespace mat
     {
         auto values_1d = getValues1D(i_grp, reac_name);
 
-        return py::array_t<double, py::array::f_style>({values_1d.dimension(0)},
+        return py::array_t<double, py::array::c_style>({values_1d.dimension(0)},
                                                         values_1d.data());
     }
 

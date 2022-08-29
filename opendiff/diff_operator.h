@@ -19,6 +19,12 @@ namespace py = pybind11;
 
 namespace operators
 {
+    using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
+    using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
+    using Tensor2D = Eigen::Tensor<double, 2, Eigen::RowMajor>;
+    using Tensor3D = Eigen::Tensor<double, 3, Eigen::RowMajor>;
+    using Tensor4D = Eigen::Tensor<double, 4, Eigen::RowMajor>;
+
     // using Triplet = Eigen::Triplet<double>;
     typedef Eigen::Triplet<double> Triplet;
 
@@ -103,7 +109,7 @@ namespace operators
         int nb_cells = static_cast<int>(dx.size());
 
         // left and right C
-        Eigen::Tensor<double, 2> diff_coeff_1d(nb_groups, nb_cells);
+        Tensor2D diff_coeff_1d(nb_groups, nb_cells);
         for (int grp{0}; grp < nb_groups; ++grp)
         {
             diff_coeff_1d.chip(grp, 0) = macrolib.getValues1D(grp + 1, "D");
@@ -113,7 +119,7 @@ namespace operators
         auto C_xn = 2 * (diff_coeff_1d.chip(nb_cells - 1, 1) * (1 - albedo_xn)) / (4 * diff_coeff_1d.chip(nb_cells - 1, 1) * (1 + albedo_xn) + dx[nb_cells - 1] * (1 - albedo_xn));
 
         // midle C
-        Eigen::Tensor<double, 2> C(nb_cells + 1, nb_groups);
+        Tensor2D C(nb_cells + 1, nb_groups);
         for (int i{0}; i < nb_cells - 1; ++i)
         {
             auto C_i = 2 * (diff_coeff_1d.chip(i, 1) * diff_coeff_1d.chip(i + 1, 1)) /
@@ -158,7 +164,7 @@ namespace operators
         int nb_cells = dx_size * dy_size;
 
         // left and right C
-        Eigen::Tensor<double, 3> diff_coeff_2d(nb_groups, dy_size, dx_size);
+        Tensor3D diff_coeff_2d(nb_groups, dy_size, dx_size);
         for (int grp{0}; grp < nb_groups; ++grp)
         {
             diff_coeff_2d.chip(grp, 0) = macrolib.getValues(grp + 1, "D").chip(0, 0); // chip(0,0) remove the null z axis
@@ -177,7 +183,7 @@ namespace operators
                     (4 * diff_coeff_2d.chip(dy_size - 1, 1) * (1 + albedo_yn) + dy[dy_size - 1] * (1 - albedo_yn));
 
         // midle C
-        Eigen::Tensor<double, 3> C_x(nb_groups, dy_size, dx_size + 1);
+        Tensor3D C_x(nb_groups, dy_size, dx_size + 1);
         for (int i{0}; i < dx_size + 1; ++i)
         {
             for (int j{0}; j < dy_size; ++j)
@@ -202,7 +208,7 @@ namespace operators
             }
         }
 
-        Eigen::Tensor<double, 3> C_y(nb_groups, dy_size+1, dx_size);
+        Tensor3D C_y(nb_groups, dy_size+1, dx_size);
         for (int i{0}; i < dx_size; ++i)
         {
             for (int j{0}; j < dy_size + 1; ++j)
@@ -278,7 +284,7 @@ namespace operators
         int nb_cells = dx_size * dy_size * dz_size;
 
         // left and right C
-        Eigen::Tensor<double, 4> diff_coeff_3d(nb_groups, dz_size, dy_size, dx_size);
+        Tensor4D diff_coeff_3d(nb_groups, dz_size, dy_size, dx_size);
         for (int grp{0}; grp < nb_groups; ++grp)
         {
             diff_coeff_3d.chip(grp, 0) = macrolib.getValues(grp + 1, "D");
@@ -303,7 +309,7 @@ namespace operators
                     (4 * diff_coeff_3d.chip(dz_size - 1, 1) * (1 + albedo_zn) + dz[dz_size - 1] * (1 - albedo_zn));
 
         // midle C
-        Eigen::Tensor<double, 4> C_x(nb_groups, dz_size, dy_size, dx_size + 1);
+        Tensor4D C_x(nb_groups, dz_size, dy_size, dx_size + 1);
         for (int i{0}; i < dx_size + 1; ++i)
         {
             for (int j{0}; j < dy_size; ++j)
@@ -334,7 +340,7 @@ namespace operators
             }
         }
 
-        Eigen::Tensor<double, 4> C_y(nb_groups, dz_size, dy_size + 1, dx_size);
+        Tensor4D C_y(nb_groups, dz_size, dy_size + 1, dx_size);
         for (int i{0}; i < dx_size; ++i)
         {
             for (int j{0}; j < dy_size + 1; ++j)
@@ -365,7 +371,7 @@ namespace operators
             }
         }
 
-        Eigen::Tensor<double, 4> C_z(nb_groups, dz_size + 1, dy_size, dx_size);
+        Tensor4D C_z(nb_groups, dz_size + 1, dy_size, dx_size);
         for (int i{0}; i < dx_size; ++i)
         {
             for (int j{0}; j < dy_size; ++j)
@@ -492,10 +498,10 @@ namespace operators
     {
         enum
         {
-            IsRowMajor = Eigen::SparseMatrix<double>::IsRowMajor
+            IsRowMajor = SpMat::IsRowMajor
         };
 
-        typename Eigen::SparseMatrix<double>::IndexVector wi(matrix_size);
+        typename SpMat::IndexVector wi(matrix_size);
 
         // pass 1: count the nnz per inner-vector
         wi.setZero();
@@ -640,7 +646,6 @@ namespace operators
         return M;
     }
 
-    using Tensor1D = Eigen::Tensor<double, 1>;
     template <>
     inline Mat setup_m_operators(Mat &D, Tensor1D volumes, mat::Macrolib &macrolib)
     {

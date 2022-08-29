@@ -12,12 +12,13 @@
 namespace solver
 {
     using vecd = std::vector<double>;
-    using SpMat = Eigen::SparseMatrix<double>;
+    using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
+    using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
 
-    Eigen::Tensor<double, 1> delta_coord(vecd &coord)
+    Tensor1D delta_coord(vecd &coord)
     {
         int c_size = static_cast<int>(coord.size());
-        auto c_map = Eigen::TensorMap<Eigen::Tensor<double, 1>>(&coord[0], c_size);
+        auto c_map = Eigen::TensorMap<Tensor1D>(&coord[0], c_size);
         Eigen::array<Eigen::Index, 1> offsets = {0};
         Eigen::array<Eigen::Index, 1> extents = {c_size};
         Eigen::array<Eigen::Index, 1> offsets_p = {1};

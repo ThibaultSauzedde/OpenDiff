@@ -16,7 +16,7 @@ namespace mat
         std::map<std::string, Eigen::ArrayXXd> m_values{};
 
         // we add the transfert section in it (always at the end) and  "SIGR"
-        std::vector<std::string> m_reac_names{"D", "SIGA", "NU_SIGF", "CHI"};
+        std::vector<std::string> m_reac_names{"D", "SIGA", "NU_SIGF", "CHI"}; // todo: add Efiss and SIGF in materials and macrolib
 
         std::map<std::string, int> m_reac2id{};
 
@@ -28,7 +28,7 @@ namespace mat
         Eigen::ArrayXXd addRemovalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids);
 
     public:
-        Materials() = delete;
+        Materials() = default;
         Materials(const Materials &copy) = default;
         Materials(const std::vector<Eigen::ArrayXXd> &values, const std::vector<std::string> &names,
                   const std::vector<std::string> &reac_names);
@@ -38,6 +38,7 @@ namespace mat
 
         // todo: add test (mat_name and reac name exist, igrp is in [0, nb_groups-1])
         const double getValue(const std::string &mat_name, const int i_grp, const std::string &reac_name) const;
+        void setValue(const std::string &mat_name, const int i_grp, const std::string &reac_name, double value);
 
         const auto getReacNames() const { return m_reac_names; };
         const auto getMatNames() const

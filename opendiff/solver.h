@@ -1,6 +1,10 @@
 #ifndef SOLVER_H
 #define SOLVER_H
 
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/eigen.h>
+
 #include <Eigen/Sparse>
 #include <petscmat.h>
 #include <string>
@@ -12,11 +16,16 @@
 namespace solver
 {
 
-    using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>; // declares a column-major sparse matrix type of double
+    using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>; // declares a RowMajor sparse matrix type of double
+
     using vecd = std::vector<double>;
+    using vecvec = std::vector<Eigen::VectorXd>;
+
+    using Tensor0D = Eigen::Tensor<double, 0, Eigen::RowMajor>;
     using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
     using Tensor2D = Eigen::Tensor<double, 2, Eigen::RowMajor>;
     using Tensor3D = Eigen::Tensor<double, 3, Eigen::RowMajor>;
+    using Tensor4Dconst = Eigen::Tensor<const double, 4, Eigen::RowMajor>;
 
     Tensor1D delta_coord(vecd &coord);
 
@@ -29,10 +38,14 @@ namespace solver
         T m_K{};
         T m_M{};
 
+        mat::Macrolib m_macrolib;
         Tensor1D m_volumes{};
 
-        std::vector<double> m_eigen_values{};
-        std::vector<Eigen::VectorXd> m_eigen_vectors{};
+        bool m_is_normed{false};
+        std::string m_norm_method{};
+
+        vecd m_eigen_values{};
+        vecvec m_eigen_vectors{};
 
     public:
         Solver() = delete;
@@ -57,6 +70,8 @@ namespace solver
             m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
             auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, dy, dz, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn);
             m_M = operators::setup_m_operators<>(D, m_volumes, macrolib);
+
+            m_macrolib = macrolib;
         };
 
         Solver(vecd &x, vecd &y, mat::Macrolib &macrolib,
@@ -73,6 +88,8 @@ namespace solver
             m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
             auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, dy, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn);
             m_M = operators::setup_m_operators<T, Tensor1D>(D, m_volumes, macrolib);
+
+            m_macrolib = macrolib;
         };
 
         Solver(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn)
@@ -84,45 +101,219 @@ namespace solver
             m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
             auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, macrolib, albedo_x0, albedo_xn);
             m_M = operators::setup_m_operators<T, Tensor1D>(D, m_volumes, macrolib);
+
+            m_macrolib = macrolib;
         };
 
-        const auto getEigenValues() const
+        void setEigenValues(vecd eigen_values) //we want a copy 
+        {
+            m_eigen_values = eigen_values;
+        };
+        void setEigenVectors(vecvec eigen_vectors) //we want a copy 
+        {
+            m_eigen_vectors = eigen_vectors;
+        };
+
+        void clearEigenValues()
+        {
+            m_eigen_values.clear();
+            m_eigen_vectors.clear();
+        };
+
+        void pushEigenValue(double eigen_value)
+        {
+            m_eigen_values.push_back(eigen_value);
+        };
+
+        void pushEigenVector(Eigen::VectorXd &eigen_vector)
+        {
+            m_eigen_vectors.push_back(eigen_vector);
+        };
+
+        const auto isNormed() const
+        {
+            return m_is_normed;
+        };
+        const auto getNormMethod() const
+        {
+            return m_norm_method;
+        };
+
+        const auto &getEigenValues() const
         {
             return m_eigen_values;
         };
-        const auto getEigenVectors() const
+        const auto &getEigenVectors() const
         {
             return m_eigen_vectors;
         };
-        const auto getK() const
+
+        const auto &getEigenVector(int i) const
+        {
+            return m_eigen_vectors[i];
+        };
+
+        const auto getEigenVector4D(int i, int dim_x, int dim_y, int dim_z, int nb_groups) const
+        {
+            Eigen::TensorMap<Tensor4Dconst> a(m_eigen_vectors[i].data(), dim_z, dim_y, dim_x, nb_groups);
+            return a;
+        };
+
+        const auto getEigenVector4D(int i) const
+        {
+            auto nb_groups = m_macrolib.getNbGroups();
+            auto dim = m_macrolib.getDim();
+            auto dim_z = std::get<2>(dim), dim_y = std::get<1>(dim), dim_x = std::get<0>(dim);
+            return getEigenVector4D(i, dim_x, dim_y, dim_z, nb_groups);
+        };
+
+        const py::array_t<double> getEigenVectorPython(int i) const
+        {
+            auto ev = getEigenVector4D(i);
+            return py::array_t<double, py::array::c_style>({ev.dimension(0), ev.dimension(1), ev.dimension(2), ev.dimension(3)},
+                                                           ev.data());
+        };
+
+        const auto &getK() const
         {
             return m_K;
         };
-        const auto getM() const
+        const auto &getM() const
         {
             return m_M;
         };
 
-        const auto getVolumes() const
+        const auto &getVolumes() const
         {
             return m_volumes;
-        };        
+        };
 
         const auto getVolumesPython() const
         {
             return py::array_t<double, py::array::c_style>({m_volumes.dimension(0)},
-                                                            m_volumes.data());
-        };    
+                                                           m_volumes.data());
+        };
 
         virtual void makeAdjoint()
         {
             m_M = m_M.adjoint();
             m_K = m_K.adjoint();
-        }
+        };
 
         virtual void solve(double tol = 1e-6, double tol_eigen_vectors = 1e-4, int nb_eigen_values = 1, const Eigen::VectorXd &v0 = Eigen::VectorXd(),
                            double tol_inner = 1e-6, int outer_max_iter = 500, int inner_max_iter = 200, std::string inner_solver = "BiCGSTAB", std::string inner_precond = "") = 0;
-        vecd get_power(mat::Macrolib &macrolib);
+
+        void handleDenegeratedEigenvalues();
+
+        //todo: use getPower(Tensor4Dconst
+        Tensor3D getPower(int i = 0, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        {
+            auto nb_groups = m_macrolib.getNbGroups();
+
+            auto dim = m_macrolib.getDim();
+            auto dim_z = std::get<2>(dim), dim_y = std::get<1>(dim), dim_x = std::get<0>(dim);
+            Tensor3D power(dim_z, dim_y, dim_x); // z, y, x
+            power.setZero();
+            auto eigenvectori = getEigenVector4D(i, dim_x, dim_y, dim_z, nb_groups);
+
+            for (int i{0}; i < nb_groups; ++i)
+            {
+                if (!m_macrolib.isIn(i + 1, "Efiss"))
+                    m_macrolib.addReaction(i + 1, "Efiss", e_fiss_J);
+
+                if (!m_macrolib.isIn(i + 1, "SIGF"))
+                    m_macrolib.addReaction(i + 1, "SIGF", m_macrolib.getValues(i + 1, "NU_SIGF") / nu);
+
+                power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "Efiss");
+            }
+
+            return power;
+        };
+        
+        // // todo: add Efiss and SIGF in materials and macrolib
+        // Tensor3D getPower(Tensor4Dconst eigenvectori, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        // {
+        //     auto nb_groups = m_macrolib.getNbGroups();
+
+        //     auto dim = m_macrolib.getDim();
+        //     auto dim_z = std::get<2>(dim), dim_y = std::get<1>(dim), dim_x = std::get<0>(dim);
+        //     Tensor3D power(dim_z, dim_y, dim_x); // z, y, x
+        //     power.setZero();
+
+        //     for (int i{0}; i < nb_groups; ++i)
+        //     {
+        //         if (!m_macrolib.isIn(i + 1, "Efiss"))
+        //             m_macrolib.addReaction(i + 1, "Efiss", e_fiss_J);
+
+        //         if (!m_macrolib.isIn(i + 1, "SIGF"))
+        //             m_macrolib.addReaction(i + 1, "SIGF", m_macrolib.getValues(i + 1, "NU_SIGF") / nu);
+
+        //         power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "Efiss");
+        //     }
+
+        //     return power;
+        // };
+
+        // Tensor3D getPower(int i = 0, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        // {
+        //     auto eigenvectori = getEigenVector4D(i);
+        //     auto power = getPower(eigenvectori, e_fiss_J, nu);
+        //     return power;
+        // };
+
+        const py::array_t<double> getPowerPython(double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4) 
+        {
+            auto power = getPower(0, e_fiss_J, nu);
+            return py::array_t<double, py::array::c_style>({power.dimension(0), power.dimension(1), power.dimension(2)},
+                                                           power.data());
+        };
+
+        const Tensor3D normPower(double power_W = 1, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        {
+            auto power = getPower(0, e_fiss_J, nu);
+            Tensor0D power_sum = power.sum();
+            double factor = power_W * 1 / power_sum(0);
+            for (auto &ev : m_eigen_vectors)
+            {
+                ev = ev * factor;
+            }
+            m_is_normed = true;
+            m_norm_method = "power";
+            return power * factor;
+        }
+
+        const py::array_t<double> normPowerPython(double power_W = 1, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        {
+            auto power = normPower(power_W, e_fiss_J, nu);
+            return py::array_t<double, py::array::c_style>({power.dimension(0), power.dimension(1), power.dimension(2)},
+                                                           power.data());
+        };
+
+        void normPhiMPhiStar(solver::Solver<SpMat> &solver_star)
+        {
+            auto eigen_vectors_star = solver_star.getEigenVectors();
+            // if (eigen_vectors_star.size() != m_eigen_vectors.size())
+            //     throw std::invalid_argument("The number of eigen vectors has the be identical in this and solver_star!");
+
+            int nb_ev = static_cast<int>(std::min(m_eigen_vectors.size(), eigen_vectors_star.size()));
+            for (int i{0}; i < nb_ev; ++i)
+            {
+                double factor = eigen_vectors_star[i].dot(m_M * m_eigen_vectors[i]);
+                m_eigen_vectors[i] = m_eigen_vectors[i] / factor;
+            }
+            m_is_normed = true;
+            m_norm_method = "PhiMPhiStar";
+        }
+
+        void norm(std::string method, solver::Solver<SpMat> &solver_star, double power_W = 1, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        {
+            if (method == "power")
+                normPower(power_W, e_fiss_J, nu);
+            else if (method == "PhiMPhiStar")
+                normPhiMPhiStar(solver_star);
+            else
+                throw std::invalid_argument("Invalid method name!");
+        }
     };
 
     class SolverPowerIt : public Solver<SpMat>
@@ -142,7 +333,7 @@ namespace solver
         void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
                             double tol_inner, int outer_max_iter, int inner_max_iter)
         {
-            
+
             int pblm_dim = static_cast<int>(m_M.rows());
             int v0_size = static_cast<int>(v0.size());
 
@@ -171,7 +362,7 @@ namespace solver
 
             double eigen_value = v.norm();
             double eigen_value_prec = eigen_value;
-            
+
             T solver;
             solver.setMaxIterations(inner_max_iter);
             solver.setTolerance(tol_inner);
@@ -192,7 +383,7 @@ namespace solver
                 v = v / eigen_value;
 
                 // precision computation
-                r_tol = std::abs(eigen_value - eigen_value_prec);
+                r_tol = std::abs(eigen_value - eigen_value_prec); // todo: use relative eps (use the norm for the eigen vectors)
                 r_tol_ev = abs((v - v_prec).maxCoeff());
                 eigen_value_prec = eigen_value;
                 v_prec = v;

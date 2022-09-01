@@ -101,10 +101,18 @@ namespace mat
         }
     }
 
+    // todo: always use the same order for i_grp (0 or 1 )
+    // todo: check the bounds
     const double Materials::getValue(const std::string &mat_name, const int i_grp, const std::string &reac_name) const
     {
         return m_values.at(mat_name)(i_grp, m_reac2id.at(reac_name));
     }
+
+    void Materials::setValue(const std::string &mat_name, const int i_grp, const std::string &reac_name, double value)
+    {
+        m_values.at(mat_name)(i_grp, m_reac2id.at(reac_name)) = value;
+    }
+
 
     Eigen::ArrayXXd Materials::addRemovalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids)
     {

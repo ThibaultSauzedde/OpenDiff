@@ -228,6 +228,36 @@ def test_solverSlepc_3d(macrolib_3d):
     s.solve(inner_solver="ibcgs")
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
 
+    # print(macrolib.getDim())
+    # print(s.getEigenVector(0, macrolib).shape)
+    power = s.getPower(macrolib)
+
+    # print(macrolib.getValues(1, "Efiss"))
+    # print(macrolib.getValues(1, "SIGF"))
+
+    # print(macrolib.getValues(2, "Efiss"))
+    # print(macrolib.getValues(2, "SIGF"))
+
+    # print(power)
+
+    # print(power.shape)
+
+    # import grid_post_process as pp
+
+    ev0 = s.getEigenVector(0, macrolib)
+    print(ev0.sum())
+    # pp.plot_map2d(ev0[:, :, :, 0].sum(axis=0), [x_mesh, y_mesh], show_stat_data=False, show_edge=False)
+    # pp.plot_map2d(ev0[:, :, :, 1].sum(axis=0), [x_mesh, y_mesh], show_stat_data=False, show_edge=False)
+    s.normPower(macrolib)
+    ev0 = s.getEigenVector(0, macrolib)
+    print(ev0.sum())
+    s_star = solver.SolverSlepc(s)
+    s.normPhiMPhiStar(s_star)
+    ev0 = s.getEigenVector(0, macrolib)
+    print(ev0.sum())
+
+    # pp.plot_map2d(100*1e6*power[3, :, :], [x_mesh, y_mesh], show_stat_data=False, show_edge=False)
+
 
 # def test_solverPI_3d_refine_lu(macrolib_3d_refine):
 #     solver.init_slepc()

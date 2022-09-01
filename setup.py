@@ -33,7 +33,8 @@ ParallelCompile("NPY_NUM_BUILD_JOBS",
 ext_modules = [
     Pybind11Extension("opendiff",
                       ['opendiff/opendiff.cpp', 'opendiff/materials.cpp',
-                       'opendiff/macrolib.cpp', 'opendiff/diff_operator.cpp', 'opendiff/solver.cpp'],
+                       'opendiff/macrolib.cpp', 'opendiff/diff_operator.cpp', 'opendiff/solver.cpp',
+                       'opendiff/perturbation.cpp'],
                       define_macros=[('VERSION_INFO', __version__)],
                       include_dirs=[
                             '/home/ts249161/dev/these/eigen'],

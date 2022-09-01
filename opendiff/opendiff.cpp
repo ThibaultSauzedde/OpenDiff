@@ -20,10 +20,14 @@
 #include "macrolib.h"
 #include "diff_operator.h"
 #include "solver.h"
+#include "perturbation.h"
 
 namespace py = pybind11;
 using vecd = std::vector<double>;
 using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>; // declares a column-major sparse matrix type of double
+
+//todo: use enum instead of string in some cases 
+
 
 // return 3 dimensional ndarray
 template <class T>
@@ -65,6 +69,7 @@ PYBIND11_MODULE(opendiff, m)
 {
     py::enum_<spdlog::level::level_enum>(m, "log_level")
         .value("debug", spdlog::level::debug)
+        .value("info", spdlog::level::info)
         .value("warning", spdlog::level::warn)
         .value("error", spdlog::level::err)
         .export_values();
@@ -87,6 +92,7 @@ PYBIND11_MODULE(opendiff, m)
         .def("getMaterial", &mat::Materials::getMaterial)
         .def("getMaterials", &mat::Materials::getMaterials)
         .def("getValue", &mat::Materials::getValue)
+        .def("setValue", &mat::Materials::setValue)
         .def("getNbGroups", py::overload_cast<>(&mat::Materials::getNbGroups, py::const_))
         .def("getReactionIndex", &mat::Materials::getReactionIndex)
         .def("addMaterial", &mat::Materials::addMaterial);
@@ -96,6 +102,7 @@ PYBIND11_MODULE(opendiff, m)
         .def(py::init<const mat::Materials &, const std::vector<std::vector<std::vector<std::string>>> &>())
         .def("getReacNames", &mat::Macrolib::getReacNames)
         .def("getNbGroups", &mat::Macrolib::getNbGroups)
+        .def("getDim", &mat::Macrolib::getDim)
         .def("getValues", &mat::Macrolib::getValuesPython)
         .def("getValues1D", &mat::Macrolib::getValues1DPython);
 
@@ -114,7 +121,12 @@ PYBIND11_MODULE(opendiff, m)
     solver.def("init_slepc", solver::init_slepc);
     solver.def("end_slepc", SlepcFinalize);
 
-    py::class_<solver::SolverPowerIt>(solver, "SolverPowerIt")
+    // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverPowerIt>();
+    // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverSlepc>();
+
+    py::class_<solver::Solver<SpMat>>(solver, "Solver");
+
+    py::class_<solver::SolverPowerIt, solver::Solver<SpMat>>(solver, "SolverPowerIt")
         .def(py::init<const solver::SolverPowerIt &>())
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
@@ -122,7 +134,16 @@ PYBIND11_MODULE(opendiff, m)
         .def("getVolumes", &solver::SolverPowerIt::getVolumesPython)
         .def("makeAdjoint", &solver::SolverPowerIt::makeAdjoint)
         .def("getEigenValues", &solver::SolverPowerIt::getEigenValues)
-        .def("getEigenVectors", &solver::SolverPowerIt::getEigenVectors) // maybe reformat it in python ???
+        .def("getEigenVectors", &solver::SolverPowerIt::getEigenVectors) 
+        .def("getVolumes", &solver::SolverPowerIt::getVolumesPython)
+        .def("getEigenVector", &solver::SolverPowerIt::getEigenVectorPython)
+        .def("getPower", &solver::SolverPowerIt::getPowerPython,
+             py::arg("e_fiss_J") = 202 * 1.60218e-19 * 1e6,
+             py::arg("nu") = 2.4)
+        .def("normPower", &solver::SolverPowerIt::normPowerPython,
+             py::arg("power_W") = 1., py::arg("e_fiss_J") = 202 * 1.60218e-19 * 1e6,
+             py::arg("nu") = 2.4)
+        .def("normPhiMPhiStar", &solver::SolverPowerIt::normPhiMPhiStar)
         .def("getK", &solver::SolverPowerIt::getK)
         .def("getM", &solver::SolverPowerIt::getM)
         .def("solve", &solver::SolverPowerIt::solve,
@@ -131,14 +152,21 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
              py::arg("inner_precond") = "");
-    // .def("get_power", &solver::SolverPowerIt::get_power); // maybe reformat it in python ???
 
-    py::class_<solver::SolverSlepc>(solver, "SolverSlepc")
+    py::class_<solver::SolverSlepc, solver::Solver<SpMat>>(solver, "SolverSlepc")
         .def(py::init<const solver::SolverSlepc &>())
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
         .def("getVolumes", &solver::SolverSlepc::getVolumesPython)
+        .def("getEigenVector", &solver::SolverSlepc::getEigenVectorPython)
+        .def("getPower", &solver::SolverSlepc::getPowerPython,
+             py::arg("e_fiss_J") = 202 * 1.60218e-19 * 1e6,
+             py::arg("nu") = 2.4)
+        .def("normPower", &solver::SolverSlepc::normPowerPython,
+             py::arg("power_W") = 1., py::arg("e_fiss_J") = 202 * 1.60218e-19 * 1e6,
+             py::arg("nu") = 2.4)
+        .def("normPhiMPhiStar", &solver::SolverSlepc::normPhiMPhiStar)
         .def("makeAdjoint", &solver::SolverSlepc::makeAdjoint)
         .def("getEigenValues", &solver::SolverSlepc::getEigenValues)
         .def("getEigenVectors", &solver::SolverSlepc::getEigenVectors) // maybe reformat it in python ???
@@ -148,6 +176,10 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("solver") = "krylovschur",
              py::arg("inner_solver") = "", py::arg("inner_precond") = "");
-
-    // .def("get_power", &solver::SolverSlepc::get_power); // maybe reformat it in python ???
+    
+    py::module perturbation = m.def_submodule("perturbation", "A module for the perturbation.");
+    perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality,
+                     py::arg("solver"), py::arg("solver_star"),
+                     py::arg("max_eps") = 1e-6, py::arg("raise_error") = false);
+    perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation);
 }

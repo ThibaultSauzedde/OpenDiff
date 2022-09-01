@@ -35,9 +35,9 @@ namespace mat
         void setup(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry);
 
     public:
-        Macrolib() = delete;
-        Macrolib(const Macrolib &copy) = delete;
-        Macrolib(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry);                      // dim are z, y, x
+        Macrolib() = default;
+        Macrolib(const Macrolib &copy) = default;
+        Macrolib(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry); // dim are z, y, x
         Macrolib(const mat::Materials &materials, const std::vector<std::vector<std::vector<std::string>>> &geometry); // python wrapping
 
         const Tensor1D &getValues1D(const int i_grp, const std::string &reac_name) const { return m_values_1dview.at({i_grp, reac_name}); };
@@ -45,8 +45,21 @@ namespace mat
         const py::array_t<double> getValuesPython(const int i_grp, const std::string &reac_name) const;   // python wrapping
         const py::array_t<double> getValues1DPython(const int i_grp, const std::string &reac_name) const; // python wrapping
 
-        const auto getReacNames() { return m_reac_names; };
-        const int getNbGroups() { return m_nb_groups; };
+        bool isIn(const int i_grp, const std::string &reac_name) const
+        {
+            if (m_values.find({i_grp, reac_name}) == m_values.end())
+                return false;
+            else
+                return true;
+        };
+
+        const auto getReacNames() const { return m_reac_names; } ; 
+        const int getNbGroups() const { return m_nb_groups; } ;  
+        const auto getDim() const { return m_dim; } ; 
+
+        void addReaction(const int i_grp, const std::string &reac_name, double values);
+        void addReaction(const int i_grp, const std::string &reac_name, Tensor3D values);
+
     };
 
 } // namespace mat

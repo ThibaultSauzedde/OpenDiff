@@ -85,7 +85,7 @@ namespace solver
 
         // outer iteration
         int i = 0;
-            while ((r_tol > tol || r_tol_ev > tol_eigen_vectors) && i < outer_max_iter)
+        while ((r_tol > tol || r_tol_ev > tol_eigen_vectors) && i < outer_max_iter)
         {
             spdlog::debug("----------------------------------------------------");
             spdlog::debug("Outer iteration {}", i);
@@ -107,8 +107,7 @@ namespace solver
             i++;
         }
         spdlog::debug("----------------------------------------------------");
-        m_eigen_values.clear();
-        m_eigen_vectors.clear();
+        clearEigenValues();
         m_eigen_values.push_back(eigen_value);
         m_eigen_vectors.push_back(v);
         spdlog::debug("Number of outter iteration: {}", i);
@@ -202,11 +201,11 @@ namespace solver
         else if (inner_precond == "ilu")
             PCSetType(pc, PCILU);
 
-        EPSSetConvergenceTest(eps, EPS_CONV_ABS);
+        EPSSetConvergenceTest(eps, EPS_CONV_REL);
         EPSSetTolerances(eps, tol, outer_max_iter);
         EPSSetWhichEigenpairs(eps, EPS_LARGEST_MAGNITUDE);
 
-        // KSPSetTolerances(ksp, tol_inner, PETSC_DEFAULT, PETSC_DEFAULT, inner_max_iter);
+        KSPSetTolerances(ksp, tol_inner, PETSC_DEFAULT, PETSC_DEFAULT, inner_max_iter);
 
         Vec v0_petsc; /* initial vector */
         MatCreateVecs(M, NULL, &v0_petsc);
@@ -216,16 +215,15 @@ namespace solver
         EPSSetInitialSpace(eps, 1, &v0_petsc);
 
         // EPSMonitorSet(eps, EPSMonitorAll, NULL, NULL);
-        PetscViewerAndFormat *monviewer;
-        PetscViewerAndFormatCreate(PETSC_VIEWER_STDOUT_WORLD, PETSC_VIEWER_DEFAULT, &monviewer);
-        // EPSMonitorSet(eps, EPSMonitorAll, monviewer, (PetscErrorCode(*)(void **))PetscViewerDestroy);
-        // EPSMonitorSet(eps, (PetscErrorCode(*)(EPS, PetscInt, PetscInt, PetscScalar *, PetscScalar *, PetscReal *, PetscInt, void *))EPSMonitorAllDrawLG, monviewer,
+        // PetscViewerAndFormat *monviewer;
+        // PetscViewerAndFormatCreate(PETSC_VIEWER_STDOUT_WORLD, PETSC_VIEWER_DEFAULT, &monviewer);
+        // // EPSMonitorSet(eps, EPSMonitorAll, monviewer, (PetscErrorCode(*)(void **))PetscViewerDestroy);
+        // // EPSMonitorSet(eps, (PetscErrorCode(*)(EPS, PetscInt, PetscInt, PetscScalar *, PetscScalar *, PetscReal *, PetscInt, void *))EPSMonitorAllDrawLG, monviewer,
+        // //               (PetscErrorCode(*)(void **))PetscViewerAndFormatDestroy);
+        // EPSMonitorSet(eps, (PetscErrorCode(*)(EPS, PetscInt, PetscInt, PetscScalar *, PetscScalar *, PetscReal *, PetscInt, void *))EPSMonitorAll, monviewer,
         //               (PetscErrorCode(*)(void **))PetscViewerAndFormatDestroy);
-        EPSMonitorSet(eps, (PetscErrorCode(*)(EPS, PetscInt, PetscInt, PetscScalar *, PetscScalar *, PetscReal *, PetscInt, void *))EPSMonitorAll, monviewer,
-                      (PetscErrorCode(*)(void **))PetscViewerAndFormatDestroy);
-        
-        EPSSetTrackAll(eps, PETSC_TRUE);
 
+        // EPSSetTrackAll(eps, PETSC_TRUE);
 
         // EPSSetTrueResidual(eps, PETSC_TRUE);
 
@@ -243,10 +241,11 @@ namespace solver
         MatCreateVecs(M, NULL, &xr);
         MatCreateVecs(M, NULL, &xi);
 
-        m_eigen_values.clear();
-        m_eigen_vectors.clear();
+
+        clearEigenValues();
+
         EPSGetConverged(eps, &nconv);
-        EPSGetIterationNumber(eps,&its);
+        EPSGetIterationNumber(eps, &its);
         EPSGetConvergedReason(eps, &reason);
         spdlog::info("Number of converged eigenpairs: {}", nconv);
         spdlog::debug("Number of outter iteration: {}", its);
@@ -293,7 +292,7 @@ namespace solver
             /*
           Compute the relative error associated to each eigenpair
        */
-            EPSComputeError(eps, i, EPS_ERROR_ABSOLUTE, &error);
+            EPSComputeError(eps, i, EPS_ERROR_RELATIVE, &error);
 #if defined(PETSC_USE_COMPLEX)
             re = PetscRealPart(kr);
             im = PetscImaginaryPart(kr);
@@ -301,10 +300,15 @@ namespace solver
             re = kr;
             im = ki;
 #endif
-            if (im != 0.0)
+
+            if (im != 0.0 && i < 20)
                 spdlog::info("Eigen value {} = {:.5f} i {:.5f} +-  {:.2e}", i, (double)re, (double)im, (double)error);
-            else
+            else if (im != 0.0)
+                spdlog::debug("Eigen value {} = {:.5f} i {:.5f} +-  {:.2e}", i, (double)re, (double)im, (double)error);
+            else if (i < 20)
                 spdlog::info("Eigen value {} = {:.5f} +- {:.2e}", i, (double)re, (double)error);
+            else
+                spdlog::debug("Eigen value {} = {:.5f} +- {:.2e}", i, (double)re, (double)error);
 
             m_eigen_values.push_back((double)re);
 

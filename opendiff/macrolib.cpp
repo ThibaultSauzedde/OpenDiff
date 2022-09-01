@@ -87,6 +87,34 @@ namespace mat
         }
     }
 
+    void Macrolib::addReaction(const int i_grp, const std::string &reac_name, double values)
+    {
+        if( find(m_reac_names.begin(), m_reac_names.end(), reac_name) == m_reac_names.end() )
+            m_reac_names.push_back(reac_name);
+
+        auto dim_z = std::get<2>(m_dim), dim_y = std::get<1>(m_dim), dim_x = std::get<0>(m_dim);
+        Eigen::array<Eigen::DenseIndex, 1> one_dim({dim_z * dim_y * dim_x});
+        Tensor3D reac_i(dim_z, dim_y, dim_x); // z, y, x
+        reac_i.setConstant(values);
+        m_values[{i_grp, reac_name}] = reac_i;
+        m_values_1dview[{i_grp, reac_name}] = reac_i.reshape(one_dim);
+    }
+
+    void Macrolib::addReaction(const int i_grp, const std::string &reac_name, Tensor3D values)
+    {
+        if( find(m_reac_names.begin(), m_reac_names.end(), reac_name) == m_reac_names.end() )
+            m_reac_names.push_back(reac_name);
+
+        auto dim_z = std::get<2>(m_dim), dim_y = std::get<1>(m_dim), dim_x = std::get<0>(m_dim);
+
+        if (dim_z != values.dimension(0) || dim_y != values.dimension(1) || dim_x != values.dimension(2))
+            throw std::invalid_argument("The size of the values must be identical to the one in the macrolib!");
+        
+        Eigen::array<Eigen::DenseIndex, 1> one_dim({dim_z * dim_y * dim_x});
+        m_values[{i_grp, reac_name}] = values;
+        m_values_1dview[{i_grp, reac_name}] = values.reshape(one_dim);
+    }
+
     const py::array_t<double> Macrolib::getValuesPython(const int i_grp, const std::string &reac_name) const
     {
         Tensor3D values = getValues(i_grp, reac_name);

@@ -40,8 +40,20 @@ namespace mat
         Macrolib(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry); // dim are z, y, x
         Macrolib(const mat::Materials &materials, const std::vector<std::vector<std::vector<std::string>>> &geometry); // python wrapping
 
-        const Tensor1D &getValues1D(const int i_grp, const std::string &reac_name) const { return m_values_1dview.at({i_grp, reac_name}); };
-        const Tensor3D &getValues(const int i_grp, const std::string &reac_name) const { return m_values.at({i_grp, reac_name}); };
+        const Tensor1D &getValues1D(const int i_grp, const std::string &reac_name) const
+        {
+            if (isIn(i_grp, reac_name))
+                return m_values_1dview.at({i_grp, reac_name});
+            else
+                throw std::invalid_argument("The wanted reac name (" + reac_name + ") and nrj group (" + std::to_string(i_grp) + ") is not in the materials");
+        };
+        const Tensor3D &getValues(const int i_grp, const std::string &reac_name) const
+        {
+            if (isIn(i_grp, reac_name))
+                return m_values.at({i_grp, reac_name});
+            else
+                throw std::invalid_argument("The wanted reac name (" + reac_name + ") and nrj group (" + std::to_string(i_grp) + ") is not in the materials");
+        };
         const py::array_t<double> getValuesPython(const int i_grp, const std::string &reac_name) const;   // python wrapping
         const py::array_t<double> getValues1DPython(const int i_grp, const std::string &reac_name) const; // python wrapping
 

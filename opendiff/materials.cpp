@@ -101,16 +101,27 @@ namespace mat
         }
     }
 
-    // todo: always use the same order for i_grp (0 or 1 )
     // todo: check the bounds
     const double Materials::getValue(const std::string &mat_name, const int i_grp, const std::string &reac_name) const
     {
-        return m_values.at(mat_name)(i_grp, m_reac2id.at(reac_name));
+        if (i_grp < 1 || i_grp > m_nb_groups)
+            throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
+
+        if (m_values.find(mat_name) == m_values.end())
+            throw std::invalid_argument("The wanted reac name (" + reac_name + ") is not in the materials");
+        else
+            return m_values.at(mat_name)(i_grp - 1, getReactionIndex(reac_name));
     }
 
     void Materials::setValue(const std::string &mat_name, const int i_grp, const std::string &reac_name, double value)
     {
-        m_values.at(mat_name)(i_grp, m_reac2id.at(reac_name)) = value;
+        if (i_grp < 1 || i_grp > m_nb_groups)
+            throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
+
+        if (m_values.find(mat_name) == m_values.end())
+            throw std::invalid_argument("The wanted reac name (" + reac_name + ") is not in the materials");
+        else
+            m_values.at(mat_name)(i_grp - 1, getReactionIndex(reac_name)) = value;
     }
 
 

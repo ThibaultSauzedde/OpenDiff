@@ -33,7 +33,13 @@ namespace mat
         Materials(const std::vector<Eigen::ArrayXXd> &values, const std::vector<std::string> &names,
                   const std::vector<std::string> &reac_names);
 
-        const Eigen::ArrayXXd &getMaterial(const std::string &name) const { return m_values.at(name); };
+        const Eigen::ArrayXXd &getMaterial(const std::string &name) const
+        {
+            if (m_values.find(name) == m_values.end())
+                throw std::invalid_argument("The wanted material name (" + name + ") is not in the materials");
+            else
+                return m_values.at(name);
+        };
         const auto getMaterials() const { return m_values; };
 
         // todo: add test (mat_name and reac name exist, igrp is in [0, nb_groups-1])
@@ -51,7 +57,13 @@ namespace mat
             return keys;
         };
         const int getNbGroups() const { return m_nb_groups; };
-        const int getReactionIndex(const std::string &reac_name) const { return m_reac2id.at(reac_name); };
+        const int getReactionIndex(const std::string &reac_name) const
+        {
+            if (m_reac2id.find(reac_name) == m_reac2id.end())
+                throw std::invalid_argument("The wanted reac name " + reac_name + "is not in the materials");
+            else
+                return m_reac2id.at(reac_name);
+        };
         void addMaterial(const Eigen::ArrayXXd &mat, const std::string &name, const std::vector<std::string> &reac_names);
     };
 

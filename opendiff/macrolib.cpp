@@ -77,7 +77,7 @@ namespace mat
                     {
                         for (int k = 0; k < dim_x; ++k)
                         {
-                            reac_i(i, j, k) = materials.getValue(geometry(i, j, k), i_grp, reac_name);
+                            reac_i(i, j, k) = materials.getValue(geometry(i, j, k), i_grp + 1, reac_name);
                         }
                     }
                 }

@@ -34,15 +34,14 @@ def test_materials(xs_aiea3d):
         assert key in mat_dict.keys()
         npt.assert_almost_equal(mat_dict[key], value)
 
-    assert mat_lib.getValue("fuel1", 0, 'SIGR') == pytest.approx(0.03)
-    assert mat_lib.getValue("fuel1", 1, 'SIGR') == pytest.approx(0.085)
+    assert mat_lib.getValue("fuel1", 1, 'SIGR') == pytest.approx(0.03)
+    assert mat_lib.getValue("fuel1", 2, 'SIGR') == pytest.approx(0.085)
 
     assert mat_lib.getNbGroups() == 2
 
-    # waiting for tests in openDiff
-    # with pytest.raises(KeyError) as e_info:
-    #     print(mat_lib.getValue("fuel1", 2, 'SIGR'))
-    #     print(mat_lib.getValue("fuel1", 2, 'SIGR'))
+    with pytest.raises(ValueError) as e_info:
+        print(mat_lib.getValue("fuel1", 3, 'SIGR'))
+        print(mat_lib.getValue("fuel1", 3, 'SIGR'))
 
     assert mat_lib.getReactionIndex("D") == 0
     assert mat_lib.getReactionIndex("CHI") == 3

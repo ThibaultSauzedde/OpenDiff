@@ -27,7 +27,7 @@ namespace mat
         int i = 0;
         for (Eigen::ArrayXXd mat : values)
         {
-            auto new_mat = addRemovalXS(mat, ids);
+            auto new_mat = addAdditionalXS(mat, ids);
 
             // fill the matrix
             m_values[names[i]] = new_mat;
@@ -39,13 +39,13 @@ namespace mat
     {
         std::vector<int> ids(reac_names.size(), -1);
 
-        if ((reac_names.size() + 1) != m_reac_names.size())
+        if ((reac_names.size() + 2) != m_reac_names.size())
             throw std::invalid_argument("There is a wrong number of reaction!");
 
         int i = 0;
         for (std::string reac_name : m_reac_names)
         {
-            if (reac_name == "SIGR")
+            if (reac_name == "SIGR" || reac_name == "SIGF")
             {
                 i++;
                 continue;
@@ -92,6 +92,7 @@ namespace mat
         }
 
         m_reac_names.push_back("SIGR");
+        m_reac_names.push_back("SIGF");
 
         int i = 0;
         for (auto reac_name : m_reac_names)
@@ -124,8 +125,7 @@ namespace mat
             m_values.at(mat_name)(i_grp - 1, getReactionIndex(reac_name)) = value;
     }
 
-
-    Eigen::ArrayXXd Materials::addRemovalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids)
+    Eigen::ArrayXXd Materials::addAdditionalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids)
     {
         // check array shape
         if (static_cast<std::vector<int>::size_type>(mat.cols()) != ids.size())
@@ -135,10 +135,13 @@ namespace mat
         Eigen::ArrayXXd new_mat = mat(Eigen::placeholders::all, ids);
 
         // add the removal xs section
-        new_mat.conservativeResize(mat.rows(), mat.cols() + 1);
+        new_mat.conservativeResize(mat.rows(), mat.cols() + 2);
 
         int id_siga = m_reac2id["SIGA"];
-        int id_sigr = m_reac2id["SIGR"]; // last id
+        int id_nusigf = m_reac2id["NU_SIGF"];
+        int id_nu = m_reac2id["NU"];
+        int id_sigr = m_reac2id["SIGR"];
+        int id_sigf = m_reac2id["SIGF"]; // last id
 
         // sigr = siga
         new_mat(Eigen::placeholders::all, id_sigr) = new_mat(Eigen::placeholders::all, id_siga);
@@ -155,6 +158,9 @@ namespace mat
                 new_mat(grp_orig, id_sigr) += new_mat(grp_orig, id_grp_dest);
             }
         }
+
+        new_mat(Eigen::placeholders::all, id_sigf) = new_mat(Eigen::placeholders::all, id_nusigf) / new_mat(Eigen::placeholders::all, id_nu);
+
         return new_mat;
     }
 
@@ -167,7 +173,7 @@ namespace mat
         if (m_nb_groups != mat.rows())
             throw std::invalid_argument("The number of groups is not the same for all the materials!");
 
-        auto new_mat = addRemovalXS(mat, ids);
+        auto new_mat = addAdditionalXS(mat, ids);
 
         // fill the matrix
         m_values[name] = new_mat;

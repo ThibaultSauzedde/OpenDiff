@@ -15,8 +15,8 @@ namespace mat
         // vector of eigen matrix
         std::map<std::string, Eigen::ArrayXXd> m_values{};
 
-        // we add the transfert section in it (always at the end) and  "SIGR"
-        std::vector<std::string> m_reac_names{"D", "SIGA", "NU_SIGF", "CHI"}; // todo: add Efiss and SIGF in materials and macrolib
+        // we add the transfert section in it (always at the end), "SIGR" and "SIGF"
+        std::vector<std::string> m_reac_names{"D", "SIGA", "NU_SIGF", "CHI", "EFISS", "NU"};
 
         std::map<std::string, int> m_reac2id{};
 
@@ -25,7 +25,7 @@ namespace mat
         std::vector<int> checkReacNamesOrder(const std::vector<std::string> &reac_names);
         void setReactionsNames();
         void getNbGroups(const std::vector<Eigen::ArrayXXd> &values);
-        Eigen::ArrayXXd addRemovalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids);
+        Eigen::ArrayXXd addAdditionalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids);
 
     public:
         Materials() = default;

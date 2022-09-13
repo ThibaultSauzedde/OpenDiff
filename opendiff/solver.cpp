@@ -315,12 +315,14 @@ namespace solver
             else
                 spdlog::debug("Eigen value {} = {:.5f} +- {:.2e}", i, (double)re, (double)error);
 
-            m_eigen_values.push_back((double)re);
-
-            VecGetArray(xr, &xrdata);
-            auto xr_eigen = Eigen::Map<Eigen::VectorXd>(xrdata, pblm_dim);
-            VecRestoreArray(xr, &xrdata);
-            m_eigen_vectors.push_back(xr_eigen);
+            if (i <= nb_eigen_values)
+            {
+                m_eigen_values.push_back((double)re);
+                VecGetArray(xr, &xrdata);
+                auto xr_eigen = Eigen::Map<Eigen::VectorXd>(xrdata, pblm_dim);
+                VecRestoreArray(xr, &xrdata);
+                m_eigen_vectors.push_back(xr_eigen);
+            }
         }
         EPSDestroy(&eps);
     }

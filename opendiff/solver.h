@@ -205,8 +205,9 @@ namespace solver
 
         void handleDenegeratedEigenvalues();
 
-        //todo: use getPower(Tensor4Dconst
-        Tensor3D getPower(int i = 0, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        // todo: use getPower(Tensor4Dconst
+        // todo: use matrix muktiplication
+        Tensor3D getPower(int i = 0)
         {
             auto nb_groups = m_macrolib.getNbGroups();
 
@@ -218,20 +219,14 @@ namespace solver
 
             for (int i{0}; i < nb_groups; ++i)
             {
-                if (!m_macrolib.isIn(i + 1, "Efiss"))
-                    m_macrolib.addReaction(i + 1, "Efiss", e_fiss_J);
-
-                if (!m_macrolib.isIn(i + 1, "SIGF"))
-                    m_macrolib.addReaction(i + 1, "SIGF", m_macrolib.getValues(i + 1, "NU_SIGF") / nu);
-
-                power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "Efiss");
+                power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "EFISS");
             }
 
             return power;
         };
-        
-        // // todo: add Efiss and SIGF in materials and macrolib
-        // Tensor3D getPower(Tensor4Dconst eigenvectori, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+
+        // // todo: add EFISS and SIGF in materials and macrolib
+        // Tensor3D getPower(Tensor4Dconst eigenvectori)
         // {
         //     auto nb_groups = m_macrolib.getNbGroups();
 
@@ -242,35 +237,35 @@ namespace solver
 
         //     for (int i{0}; i < nb_groups; ++i)
         //     {
-        //         if (!m_macrolib.isIn(i + 1, "Efiss"))
-        //             m_macrolib.addReaction(i + 1, "Efiss", e_fiss_J);
+        //         if (!m_macrolib.isIn(i + 1, "EFISS"))
+        //             m_macrolib.addReaction(i + 1, "EFISS", e_fiss_J);
 
         //         if (!m_macrolib.isIn(i + 1, "SIGF"))
         //             m_macrolib.addReaction(i + 1, "SIGF", m_macrolib.getValues(i + 1, "NU_SIGF") / nu);
 
-        //         power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "Efiss");
+        //         power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "EFISS");
         //     }
 
         //     return power;
         // };
 
-        // Tensor3D getPower(int i = 0, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        // Tensor3D getPower(int i = 0)
         // {
         //     auto eigenvectori = getEigenVector4D(i);
-        //     auto power = getPower(eigenvectori, e_fiss_J, nu);
+        //     auto power = getPower(eigenvectori);
         //     return power;
         // };
 
-        const py::array_t<double> getPowerPython(double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4) 
+        const py::array_t<double> getPowerPython()
         {
-            auto power = getPower(0, e_fiss_J, nu);
+            auto power = getPower(0);
             return py::array_t<double, py::array::c_style>({power.dimension(0), power.dimension(1), power.dimension(2)},
                                                            power.data());
         };
 
-        const Tensor3D normPower(double power_W = 1, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        const Tensor3D normPower(double power_W = 1)
         {
-            auto power = getPower(0, e_fiss_J, nu);
+            auto power = getPower(0);
             Tensor0D power_sum = power.sum();
             double factor = power_W * 1 / power_sum(0);
             for (auto &ev : m_eigen_vectors)
@@ -282,14 +277,14 @@ namespace solver
             return power * factor;
         }
 
-        const py::array_t<double> normPowerPython(double power_W = 1, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        const py::array_t<double> normPowerPython(double power_W = 1)
         {
-            auto power = normPower(power_W, e_fiss_J, nu);
+            auto power = normPower(power_W);
             return py::array_t<double, py::array::c_style>({power.dimension(0), power.dimension(1), power.dimension(2)},
                                                            power.data());
         };
 
-        void normPhiMPhiStar(solver::Solver<SpMat> &solver_star)
+        void normPhiStarMPhi(solver::Solver<SpMat> &solver_star)
         {
             auto eigen_vectors_star = solver_star.getEigenVectors();
             // if (eigen_vectors_star.size() != m_eigen_vectors.size())
@@ -302,15 +297,15 @@ namespace solver
                 m_eigen_vectors[i] = m_eigen_vectors[i] / factor;
             }
             m_is_normed = true;
-            m_norm_method = "PhiMPhiStar";
+            m_norm_method = "PhiStarMPhi";
         }
 
-        void norm(std::string method, solver::Solver<SpMat> &solver_star, double power_W = 1, double e_fiss_J = 202 * 1.60218e-19 * 1e6, double nu = 2.4)
+        void norm(std::string method, solver::Solver<SpMat> &solver_star, double power_W = 1)
         {
             if (method == "power")
-                normPower(power_W, e_fiss_J, nu);
-            else if (method == "PhiMPhiStar")
-                normPhiMPhiStar(solver_star);
+                normPower(power_W);
+            else if (method == "PhiStarMPhi")
+                normPhiStarMPhi(solver_star);
             else
                 throw std::invalid_argument("Invalid method name!");
         }

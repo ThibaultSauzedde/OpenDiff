@@ -126,6 +126,7 @@ namespace solver
                                     tol_inner, outer_max_iter, inner_max_iter, "krylovschur", inner_solver, inner_precond);
     }
 
+    //todo add which eigen values (smallest, largest)
     void SolverSlepc::solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
                                      double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond)
     {
@@ -191,6 +192,8 @@ namespace solver
             KSPSetType(ksp, KSPIBCGS);
         else if (inner_solver == "bcgs")
             KSPSetType(ksp, KSPBCGS);
+        else if (inner_solver == "gmres")
+            KSPSetType(ksp, KSPGMRES); 	
 
         if (inner_precond == "jacobi")
             PCSetType(pc, PCJACOBI);
@@ -200,6 +203,8 @@ namespace solver
             PCSetType(pc, PCCHOLESKY);
         else if (inner_precond == "ilu")
             PCSetType(pc, PCILU);
+        else if (inner_precond == "asm")
+            PCSetType(pc, PCASM);
 
         EPSSetConvergenceTest(eps, EPS_CONV_REL);
         EPSSetTolerances(eps, tol, outer_max_iter);

@@ -124,28 +124,25 @@ PYBIND11_MODULE(opendiff, m)
     // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverPowerIt>();
     // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverSlepc>();
 
-    py::class_<solver::Solver<SpMat>>(solver, "Solver");
+    py::class_<solver::Solver<SpMat>>(solver, "Solver")
+        .def("getVolumes", &solver::Solver<SpMat>::getVolumesPython)
+        .def("makeAdjoint", &solver::Solver<SpMat>::makeAdjoint)
+        .def("getEigenValues", &solver::Solver<SpMat>::getEigenValues)
+        .def("getEigenVectors", &solver::Solver<SpMat>::getEigenVectors)
+        .def("getVolumes", &solver::Solver<SpMat>::getVolumesPython)
+        .def("getEigenVector", &solver::Solver<SpMat>::getEigenVectorPython)
+        .def("getPower", &solver::Solver<SpMat>::getPowerPython)
+        .def("normPower", &solver::Solver<SpMat>::normPowerPython,
+             py::arg("power_W") = 1.)
+        .def("normPhiStarMPhi", &solver::Solver<SpMat>::normPhiStarMPhi)
+        .def("getK", &solver::Solver<SpMat>::getK)
+        .def("getM", &solver::Solver<SpMat>::getM);
 
     py::class_<solver::SolverPowerIt, solver::Solver<SpMat>>(solver, "SolverPowerIt")
-        .def(py::init<const solver::SolverPowerIt &>())
+        .def(py::init<const solver::Solver<SpMat> &>())
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
-        .def("getVolumes", &solver::SolverPowerIt::getVolumesPython)
-        .def("makeAdjoint", &solver::SolverPowerIt::makeAdjoint)
-        .def("getEigenValues", &solver::SolverPowerIt::getEigenValues)
-        .def("getEigenVectors", &solver::SolverPowerIt::getEigenVectors) 
-        .def("getVolumes", &solver::SolverPowerIt::getVolumesPython)
-        .def("getEigenVector", &solver::SolverPowerIt::getEigenVectorPython)
-        .def("getPower", &solver::SolverPowerIt::getPowerPython,
-             py::arg("e_fiss_J") = 202 * 1.60218e-19 * 1e6,
-             py::arg("nu") = 2.4)
-        .def("normPower", &solver::SolverPowerIt::normPowerPython,
-             py::arg("power_W") = 1., py::arg("e_fiss_J") = 202 * 1.60218e-19 * 1e6,
-             py::arg("nu") = 2.4)
-        .def("normPhiMPhiStar", &solver::SolverPowerIt::normPhiMPhiStar)
-        .def("getK", &solver::SolverPowerIt::getK)
-        .def("getM", &solver::SolverPowerIt::getM)
         .def("solve", &solver::SolverPowerIt::solve,
              py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(),
@@ -154,29 +151,17 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("inner_precond") = "");
 
     py::class_<solver::SolverSlepc, solver::Solver<SpMat>>(solver, "SolverSlepc")
-        .def(py::init<const solver::SolverSlepc &>())
+        .def(py::init<const solver::Solver<SpMat> &>())
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
-        .def("getVolumes", &solver::SolverSlepc::getVolumesPython)
-        .def("getEigenVector", &solver::SolverSlepc::getEigenVectorPython)
-        .def("getPower", &solver::SolverSlepc::getPowerPython,
-             py::arg("e_fiss_J") = 202 * 1.60218e-19 * 1e6,
-             py::arg("nu") = 2.4)
-        .def("normPower", &solver::SolverSlepc::normPowerPython,
-             py::arg("power_W") = 1., py::arg("e_fiss_J") = 202 * 1.60218e-19 * 1e6,
-             py::arg("nu") = 2.4)
-        .def("normPhiMPhiStar", &solver::SolverSlepc::normPhiMPhiStar)
-        .def("makeAdjoint", &solver::SolverSlepc::makeAdjoint)
-        .def("getEigenValues", &solver::SolverSlepc::getEigenValues)
-        .def("getEigenVectors", &solver::SolverSlepc::getEigenVectors) // maybe reformat it in python ???
         .def("solve", &solver::SolverSlepc::solveIterative,
              py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(),
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("solver") = "krylovschur",
              py::arg("inner_solver") = "", py::arg("inner_precond") = "");
-    
+
     py::module perturbation = m.def_submodule("perturbation", "A module for the perturbation.");
     perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality,
                      py::arg("solver"), py::arg("solver_star"),

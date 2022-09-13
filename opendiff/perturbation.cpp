@@ -50,7 +50,7 @@ namespace perturbation
 
     std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(solver::Solver<SpMat> &solver, solver::Solver<SpMat> &solver_star, solver::Solver<SpMat> &solver_pert, std::string norm_method)
     {
-        if (norm_method != "power" && norm_method != "PhiMPhiStar")
+        if (norm_method != "power" && norm_method != "PhiStarMPhi")
             throw std::invalid_argument("Invalid method name!");
 
         if (!(solver.isNormed() && solver.getNormMethod() == norm_method))
@@ -71,8 +71,9 @@ namespace perturbation
         auto eval_recons = eigen_values[0];
 
         std::vector<double> a{};
-        if (norm_method == "PhiMPhiStar")
+        if (norm_method == "PhiStarMPhi")
         {
+            // spdlog::debug("a0/2. + 1  = {:.2e}", eigen_vectors_star[0].dot(delta_M * eigen_vectors[0]));
             auto a0 = 1 - eigen_vectors_star[0].dot(delta_M * eigen_vectors[0]) / 2.;
             a.push_back(a0);
             for (int i{1}; i < nb_ev; ++i)
@@ -93,7 +94,7 @@ namespace perturbation
             Tensor0D power_sum = power.sum();
             auto power_pert = solver_pert.getPower(0);
             Tensor0D power_pert_sum = power.sum();
-            double a0 = power_sum(0) - power_pert_sum(0);
+            double a0 = power_sum(0);
 
             for (int i{1}; i < nb_ev; ++i)
             {
@@ -102,11 +103,11 @@ namespace perturbation
                 a.push_back(a_i);
                 ev_recons += a_i * eigen_vectors[i];
                 auto power_pert_i = solver_pert.getPower(i);
-                Tensor0D power_pert_i_sum = power.sum();
-                a0 -= power_pert_i_sum(0);
+                Tensor0D power_pert_i_sum = power_pert_i.sum();
+                a0 -= a_i * power_pert_i_sum(0);
             }
             a0 /= power_pert_sum(0);
-            a[0] = 1 + a0;
+            a[0] = a0;
 
             eval_recons += eigen_vectors_star[0].dot(delta_L_ev) / (eigen_vectors_star[0].dot(M * eigen_vectors[0]));
 

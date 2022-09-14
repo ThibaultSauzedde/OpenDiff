@@ -10,6 +10,7 @@ import opendiff.perturbation as pert
 
 from opendiff import set_log_level, log_level
 
+import grid_post_process as pp
 
 def test_pert_first_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadir):
     solver.init_slepc()
@@ -135,7 +136,7 @@ def test_pert_first_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadi
 
 def test_pert_first_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir):
     solver.init_slepc()
-    set_log_level(log_level.debug)
+    set_log_level(log_level.warning)
     macrolib, x_mesh, y_mesh = macrolib_2d_refine
 
     nb_eigen = 49
@@ -176,7 +177,7 @@ def test_pert_first_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadi
     #       egval_pert[0])/(egval_pert[0]*egval_recons))
 
     assert abs(1e5*(egval_recons -
-                    egval_pert[0])/(egval_pert[0]*egval_recons)) < 8
+                    egval_pert[0])/(egval_pert[0]*egval_recons)) == pytest.approx(7.863762548633915, abs=0.1)
 
     s_pert.normPower()
     s.normPower()
@@ -192,7 +193,7 @@ def test_pert_first_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadi
     # print(np.max(delta))
     # print(np.max(delta_recons))
 
-    assert np.max(delta_recons) == pytest.approx(0.44492480151846603, abs=1e-6)
+    assert np.max(delta_recons) == pytest.approx(0.4434880129653253, abs=1e-6)
     # np.savetxt(
     #     "/home/ts249161/dev/these/openDiff/tests/test_perturbation/delta_recons_2d.txt", delta_recons.reshape(-1))
     # np.savetxt(
@@ -211,8 +212,154 @@ def test_pert_first_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadi
     s_recons.normPower()
     delta = 100*(egvect_pert-egvect)/egvect
     delta_recons = 100*(egvect_recons-egvect_pert)/egvect_pert
-    assert np.max(delta_recons) == pytest.approx(0.44492480151846603, abs=1e-6)
+    assert np.max(delta_recons) == pytest.approx(0.4434880129653253, abs=1e-6)
     npt.assert_almost_equal(delta.reshape(-1), delta_ref,
                             decimal=8)
     npt.assert_almost_equal(delta_recons.reshape(-1), delta_recons_ref,
                             decimal=8)
+
+    print(egval_recons)
+    print(egval_pert[0])
+    print(egval[0])
+
+    print("sens", 1e5*(egval_pert[0]-egval[0])/(egval[0]*egval_pert[0]))
+    print("sens recons", 1e5*(egval_recons-egval[0])/(egval[0]*egval_recons))
+    print("delta recons", 1e5*(egval_recons -
+          egval_pert[0])/(egval_pert[0]*egval_recons))
+
+    print(np.max(delta))
+    print(np.max(delta_recons))
+
+    print(a)
+    print("----------------------------------------------")
+    pp.plot_map2d(delta_recons[:, :, :, 0].sum(axis=0), [x_mesh, y_mesh],
+                  show=False, x_label=None, y_label=None, cbar=False, show_stat_data=True, show_edge=False, show_xy=False, sym=True, stat_data_size=12)
+    pp.plot_map2d(delta_recons[:, :, :, 1].sum(axis=0), [x_mesh, y_mesh],
+                  show=True, x_label=None, y_label=None, cbar=False, show_stat_data=True, show_edge=False, show_xy=False, sym=True, stat_data_size=12)
+
+
+def test_pert_high_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d_refine
+
+    nb_eigen = 49
+
+    s = solver.SolverSlepc(x_mesh, macrolib, -1., -1.)
+    s.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
+            tol=1e-10, tol_inner=1e-4)
+
+    s_star = solver.SolverSlepc(s)
+    s_star.makeAdjoint()
+    s_star.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
+                 tol=1e-10, tol_inner=1e-4)
+
+    egval = s.getEigenValues()
+
+    pert.checkBiOrthogonality(s, s_star, 1e-10, True)
+
+    s_pert = solver.SolverSlepc(
+        x_mesh, macrolib_1d_pert_refine, -1., -1.)  # zero flux albedo
+    s_recons = solver.SolverSlepc(s_pert)
+    s_pert.solve(nb_eigen_values=1, inner_max_iter=500,
+                 tol=1e-10, tol_inner=1e-4)
+    egval_pert = s_pert.getEigenValues()
+    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_1d.txt", ref_eigenvector)
+    # ref_eigenvector = np.loadtxt(datadir / "ev_slepc_1d.txt")
+
+    egvec_recons, egval_recons, a = pert.highOrderPerturbation(
+        3, s, s_star, s_recons)
+
+    print(egval_recons)
+    print(egval_pert[0])
+    print(egval[0])
+
+    print("sens", 1e5*(egval_pert[0]-egval[0])/(egval[0]*egval_pert[0]))
+    print("sens recons", 1e5*(egval_recons-egval[0])/(egval[0]*egval_recons))
+    print("delta recons", 1e5*(egval_recons -
+          egval_pert[0])/(egval_pert[0]*egval_recons))
+
+    assert abs(1e5*(egval_recons -
+                    egval_pert[0])/(egval_pert[0]*egval_recons)) < 1
+
+
+def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.warning)
+    macrolib, x_mesh, y_mesh = macrolib_2d_refine
+
+    nb_eigen = 50
+    s = solver.SolverSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
+    s.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
+            tol=1e-10, tol_inner=1e-4)
+
+    s_star = solver.SolverSlepc(s)
+    s_star.makeAdjoint()
+    s_star.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
+                 tol=1e-10, tol_inner=1e-4)
+
+    egval = s.getEigenValues()
+
+    pert.checkBiOrthogonality(s, s_star, 1e-10, True)
+
+    s_pert = solver.SolverSlepc(
+        x_mesh, y_mesh, macrolib_2d_pert_refine, 1., -1., 1., -1.)
+    s_recons = solver.SolverSlepc(s_pert)
+    s_pert.solve(nb_eigen_values=1, inner_max_iter=500,
+                 tol=1e-10, tol_inner=1e-4)
+    egval_pert = s_pert.getEigenValues()
+
+    # M = s.getM()
+    # M_pert = s_pert.getM()
+    # K = s.getK()
+    # K_pert = s_pert.getK()
+    # import ipdb; ipdb.set_trace()
+    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_1d.txt", ref_eigenvector)
+    # ref_eigenvector = np.loadtxt(datadir / "ev_slepc_1d.txt")
+
+    egvec_recons, egval_recons, a = pert.highOrderPerturbation(
+        2, s, s_star, s_recons)
+    # egvec_recons, egval_recons, a = pert.firstOrderPerturbation(
+    #     s, s_star, s_recons, "power")
+    print(s.getPower().sum())
+    print(s_recons.getPower().sum())
+    print(egval_recons)
+    print(egval_pert[0])
+    print(egval[0])
+
+    print("sens", 1e5*(egval_pert[0]-egval[0])/(egval[0]*egval_pert[0]))
+    print("sens recons", 1e5*(egval_recons-egval[0])/(egval[0]*egval_recons))
+    print("delta recons", 1e5*(egval_recons -
+          egval_pert[0])/(egval_pert[0]*egval_recons))
+
+    # assert abs(1e5*(egval_recons -
+    #                 egval_pert[0])/(egval_pert[0]*egval_recons)) < 10
+
+    s_pert.normPower()
+    s.normPower()
+    s_recons.normPower()
+
+    egvect_pert = s_pert.getEigenVector(0)
+    egvect = s.getEigenVector(0)
+    egvect_recons = s_recons.getEigenVector(0)
+
+    delta = 100*(egvect_pert-egvect)/egvect
+    delta_recons = 100*(egvect_recons-egvect_pert)/egvect_pert
+
+    print(np.max(delta))
+    print(np.max(delta_recons))
+
+    # # assert np.max(delta_recons) == pytest.approx(0.44492480151846603, abs=1e-6)
+    # np.savetxt(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_perturbation/delta_recons_high_2d.txt", delta_recons.reshape(-1))
+    # delta_ref = np.loadtxt(datadir / "delta_2d.txt")
+    # delta_recons_ref = np.loadtxt(datadir / "delta_recons_2d.txt")
+
+    # npt.assert_almost_equal(delta.reshape(-1), delta_ref,
+    #                         decimal=8)
+    # npt.assert_almost_equal(delta_recons.reshape(-1), delta_recons_ref,
+    #                         decimal=8)
+    pp.plot_map2d(delta_recons[:, :, :, 0].sum(axis=0), [x_mesh, y_mesh],
+                  show=False, x_label=None, y_label=None, cbar=False, show_stat_data=True, show_edge=False, show_xy=False, sym=True, stat_data_size=12)
+    pp.plot_map2d(delta_recons[:, :, :, 1].sum(axis=0), [x_mesh, y_mesh],
+                  show=True, x_label=None, y_label=None, cbar=False, show_stat_data=True, show_edge=False, show_xy=False, sym=True, stat_data_size=12)

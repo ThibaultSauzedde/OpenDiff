@@ -167,4 +167,5 @@ PYBIND11_MODULE(opendiff, m)
                      py::arg("solver"), py::arg("solver_star"),
                      py::arg("max_eps") = 1e-6, py::arg("raise_error") = false);
     perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation);
+    perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython);
 }

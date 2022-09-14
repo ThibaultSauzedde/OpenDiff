@@ -26,6 +26,7 @@ namespace mat
         void setReactionsNames();
         void getNbGroups(const std::vector<Eigen::ArrayXXd> &values);
         Eigen::ArrayXXd addAdditionalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids);
+        void majAdditionalXS(Eigen::ArrayXXd &new_mat);
 
     public:
         Materials() = default;
@@ -42,7 +43,6 @@ namespace mat
         };
         const auto getMaterials() const { return m_values; };
 
-        // todo: add test (mat_name and reac name exist, igrp is in [0, nb_groups-1])
         const double getValue(const std::string &mat_name, const int i_grp, const std::string &reac_name) const;
         void setValue(const std::string &mat_name, const int i_grp, const std::string &reac_name, double value);
 

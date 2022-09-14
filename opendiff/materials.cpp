@@ -122,7 +122,11 @@ namespace mat
         if (m_values.find(mat_name) == m_values.end())
             throw std::invalid_argument("The wanted reac name (" + reac_name + ") is not in the materials");
         else
+        {
             m_values.at(mat_name)(i_grp - 1, getReactionIndex(reac_name)) = value;
+            if ((reac_name != "SIGR") && (reac_name != "SIGF"))
+                majAdditionalXS(m_values.at(mat_name));
+        }
     }
 
     Eigen::ArrayXXd Materials::addAdditionalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids)
@@ -134,9 +138,14 @@ namespace mat
         // reorder the array
         Eigen::ArrayXXd new_mat = mat(Eigen::placeholders::all, ids);
 
-        // add the removal xs section
+        // add the removal + sigf xs section
         new_mat.conservativeResize(mat.rows(), mat.cols() + 2);
+        majAdditionalXS(new_mat);
+        return new_mat;
+    }
 
+    void Materials::majAdditionalXS(Eigen::ArrayXXd &new_mat)
+    {
         int id_siga = m_reac2id["SIGA"];
         int id_nusigf = m_reac2id["NU_SIGF"];
         int id_nu = m_reac2id["NU"];
@@ -160,8 +169,6 @@ namespace mat
         }
 
         new_mat(Eigen::placeholders::all, id_sigf) = new_mat(Eigen::placeholders::all, id_nusigf) / new_mat(Eigen::placeholders::all, id_nu);
-
-        return new_mat;
     }
 
     void Materials::addMaterial(const Eigen::ArrayXXd &mat, const std::string &name, const std::vector<std::string> &reac_names)

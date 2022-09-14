@@ -138,6 +138,7 @@ namespace perturbation
         auto eigen_vectors_star = solver_star.getEigenVectors();
         auto delta_M = (M_pert - M);
         auto delta_K = (K_pert - K);
+        auto delta_L = (delta_K - delta_M * eigen_values[0]);
         int nb_ev = static_cast<int>(std::min(eigen_vectors.size(), eigen_vectors_star.size()));
 
         Tensor1D eval_recons_list(order);
@@ -149,11 +150,11 @@ namespace perturbation
         Tensor1D norm(nb_ev);
         norm.setZero();
 
-        Tensor2D ev_star_dk_ev(nb_ev, nb_ev);
-        ev_star_dk_ev.setZero();
-
         Tensor2D ev_star_dm_ev(nb_ev, nb_ev);
         ev_star_dm_ev.setZero();
+
+        Tensor2D ev_star_dl_ev(nb_ev, nb_ev);
+        ev_star_dl_ev.setZero();
 
         // add unpert eigen vector (temporary)
         solver_pert.setEigenVectors(eigen_vectors);
@@ -171,29 +172,26 @@ namespace perturbation
             norm(i) = eigen_vectors_star[i].dot(M * eigen_vectors[i]);
             for (int j{0}; j < nb_ev; ++j)
             {
-                ev_star_dk_ev(i, j) = eigen_vectors_star[i].dot(delta_K * eigen_vectors[j]);
                 ev_star_dm_ev(i, j) = eigen_vectors_star[i].dot(delta_M * eigen_vectors[j]);
+                ev_star_dl_ev(i, j) = eigen_vectors_star[i].dot(delta_L * eigen_vectors[j]);
             }
         }
-        std::cout << norm.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
-        std::cout << ev_star_dk_ev.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
-        std::cout << ev_star_dm_ev.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
+
         for (int i{1}; i < order; ++i)
         {
             // eigenvalue calculation
             auto tmp0 = 0.;
             for (int j{0}; j < nb_ev; ++j)
-                tmp0 += ev_star_dk_ev(0, j) * a(i - 1, j);
+                tmp0 += ev_star_dl_ev(0, j) * a(i - 1, j);
 
             auto tmp1 = 0.;
             for (int j{0}; j < nb_ev; ++j)
-                for (int k{0}; k <= i - 1; ++k)
-                    tmp1 += eval_recons_list(k) * a(i - k - 1, j) * ev_star_dm_ev(0, j);
+                for (int k{0}; k <= i - 2; ++k)
+                    tmp1 += eval_recons_list(i - k - 1) * a(k, j) * ev_star_dm_ev(0, j);
 
             auto tmp2 = 0.;
             for (int k{1}; k <= i - 1; ++k)
-                tmp2 += eval_recons_list(k) * a(i - k, 0);
-
+                tmp2 += eval_recons_list(i - k) * a(k, 0);
             eval_recons_list(i) = (tmp0 - tmp1 - tmp2 * norm(0)) / (a(0, 0) * norm(0));
 
             // a coeff calculation
@@ -202,16 +200,16 @@ namespace perturbation
             {
                 auto tmpa_0 = 0.;
                 for (int j{0}; j < nb_ev; ++j)
-                    tmpa_0 += ev_star_dk_ev(n, j) * a(i - 1, j);
+                    tmpa_0 += ev_star_dl_ev(n, j) * a(i - 1, j);
 
                 auto tmpa_1 = 0.;
                 for (int j{0}; j < nb_ev; ++j)
-                    for (int k{0}; k <= i - 1; ++k)
-                        tmpa_1 += eval_recons_list(k) * ev_star_dm_ev(n, j) * a(i - k - 1, j);
+                    for (int k{0}; k <= i - 2; ++k)
+                        tmpa_1 += eval_recons_list(i - k - 1) * ev_star_dm_ev(n, j) * a(k, j);
 
                 auto tmpa_2 = 0.;
-                for (int k{1}; k <= i; ++k)
-                    tmpa_2 = eval_recons_list(k) * a(i - k, n);
+                for (int k{0}; k <= i - 1; ++k)
+                    tmpa_2 = eval_recons_list(i - k) * a(k, n);
 
                 a(i, n) = (-tmpa_0 + tmpa_1 + tmpa_2 * norm(n)) / ((eigen_values[n] - eigen_values[0]) * norm(n));
 
@@ -223,11 +221,6 @@ namespace perturbation
             a(i, 0) = -power_pert_high_order / power_pert_sum(0);
         }
 
-        // spdlog::debug("a : {}", a.format(Eigen::TensorIOFormat::Numpy()));
-        // spdlog::debug("eigenvalues : {}", eval_recons_list.format(Eigen::TensorIOFormat::Numpy()));
-        std::cout << a.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
-        std::cout << eval_recons_list.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
-
         Tensor0D eval_recons_sum = eval_recons_list.sum();
         double eval_recons = eval_recons_sum(0);
         Eigen::VectorXd ev_recons(eigen_vectors[0].size());
@@ -235,8 +228,6 @@ namespace perturbation
 
         Eigen::array<int, 1> dims({0});
         Tensor1D a_sum = a.sum(dims);
-        std::cout << a_sum.format(Eigen::TensorIOFormat::Numpy()) << std::endl;
-
         for (int n{0}; n < nb_ev; ++n)
             ev_recons += a_sum(n) * eigen_vectors[n];
 

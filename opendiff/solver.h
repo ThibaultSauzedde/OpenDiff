@@ -1,14 +1,21 @@
 #ifndef SOLVER_H
 #define SOLVER_H
 
+#include <vector>
+#include <cmath>
+#include <string>
+#include "spdlog/spdlog.h"
+
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/eigen.h>
 
 #include <Eigen/Sparse>
+#include <Eigen/IterativeLinearSolvers>
+#include <unsupported/Eigen/IterativeSolvers>
+
 #include <petscmat.h>
-#include <string>
-#include "spdlog/spdlog.h"
+#include <slepceps.h>
 
 #include "macrolib.h"
 #include "diff_operator.h"
@@ -56,54 +63,12 @@ namespace solver
             m_M = M;
         };
         Solver(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
-               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn)
-        {
-            // calculate dx, dy
-            auto dx = delta_coord(x);
-            auto dy = delta_coord(y);
-            auto dz = delta_coord(z);
-            Eigen::array<Eigen::IndexPair<long>, 0> empty_index_list = {};
-            Tensor3D vol = dx.contract(dy, empty_index_list).contract(dz, empty_index_list);
-            Eigen::array<Eigen::DenseIndex, 1> one_dim({static_cast<int>(vol.size())});
-
-            m_volumes = vol.reshape(one_dim);
-            m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
-            auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, dy, dz, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn);
-            m_M = operators::setup_m_operators<>(D, m_volumes, macrolib);
-
-            m_macrolib = macrolib;
-        };
+               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
 
         Solver(vecd &x, vecd &y, mat::Macrolib &macrolib,
-               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn)
-        {
-            // calculate dx, dy
-            auto dx = delta_coord(x);
-            auto dy = delta_coord(y);
-            Eigen::array<Eigen::IndexPair<long>, 0> empty_index_list = {};
-            Tensor2D surf = dx.contract(dy, empty_index_list);
-            Eigen::array<Eigen::DenseIndex, 1> one_dim({static_cast<int>(surf.size())});
+               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
 
-            m_volumes = surf.reshape(one_dim);
-            m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
-            auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, dy, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn);
-            m_M = operators::setup_m_operators<T, Tensor1D>(D, m_volumes, macrolib);
-
-            m_macrolib = macrolib;
-        };
-
-        Solver(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn)
-        {
-            // calculate dx
-            auto dx = delta_coord(x);
-            m_volumes = dx;
-
-            m_K = operators::diff_fission_op<T, Tensor1D>(m_volumes, macrolib);
-            auto D = operators::diff_diffusion_op<T, Tensor1D>(dx, macrolib, albedo_x0, albedo_xn);
-            m_M = operators::setup_m_operators<T, Tensor1D>(D, m_volumes, macrolib);
-
-            m_macrolib = macrolib;
-        };
+        Solver(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn);
 
         void setEigenValues(vecd eigen_values) //we want a copy 
         {
@@ -207,108 +172,17 @@ namespace solver
 
         // todo: use getPower(Tensor4Dconst
         // todo: use matrix muktiplication
-        Tensor3D getPower(int i = 0)
-        {
-            auto nb_groups = m_macrolib.getNbGroups();
+        Tensor3D getPower(int i = 0);
 
-            auto dim = m_macrolib.getDim();
-            auto dim_z = std::get<2>(dim), dim_y = std::get<1>(dim), dim_x = std::get<0>(dim);
-            Tensor3D power(dim_z, dim_y, dim_x); // z, y, x
-            power.setZero();
-            auto eigenvectori = getEigenVector4D(i, dim_x, dim_y, dim_z, nb_groups);
+        const py::array_t<double> getPowerPython();
 
-            for (int i{0}; i < nb_groups; ++i)
-            {
-                power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "EFISS");
-            }
+        const Tensor3D normPower(double power_W = 1);
 
-            return power;
-        };
+        const py::array_t<double> normPowerPython(double power_W = 1);
 
-        // // todo: add EFISS and SIGF in materials and macrolib
-        // Tensor3D getPower(Tensor4Dconst eigenvectori)
-        // {
-        //     auto nb_groups = m_macrolib.getNbGroups();
+        void normPhiStarMPhi(solver::Solver<SpMat> &solver_star);
 
-        //     auto dim = m_macrolib.getDim();
-        //     auto dim_z = std::get<2>(dim), dim_y = std::get<1>(dim), dim_x = std::get<0>(dim);
-        //     Tensor3D power(dim_z, dim_y, dim_x); // z, y, x
-        //     power.setZero();
-
-        //     for (int i{0}; i < nb_groups; ++i)
-        //     {
-        //         if (!m_macrolib.isIn(i + 1, "EFISS"))
-        //             m_macrolib.addReaction(i + 1, "EFISS", e_fiss_J);
-
-        //         if (!m_macrolib.isIn(i + 1, "SIGF"))
-        //             m_macrolib.addReaction(i + 1, "SIGF", m_macrolib.getValues(i + 1, "NU_SIGF") / nu);
-
-        //         power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "EFISS");
-        //     }
-
-        //     return power;
-        // };
-
-        // Tensor3D getPower(int i = 0)
-        // {
-        //     auto eigenvectori = getEigenVector4D(i);
-        //     auto power = getPower(eigenvectori);
-        //     return power;
-        // };
-
-        const py::array_t<double> getPowerPython()
-        {
-            auto power = getPower(0);
-            return py::array_t<double, py::array::c_style>({power.dimension(0), power.dimension(1), power.dimension(2)},
-                                                           power.data());
-        };
-
-        const Tensor3D normPower(double power_W = 1)
-        {
-            auto power = getPower(0);
-            Tensor0D power_sum = power.sum();
-            double factor = power_W * 1 / power_sum(0);
-            for (auto &ev : m_eigen_vectors)
-            {
-                ev = ev * factor;
-            }
-            m_is_normed = true;
-            m_norm_method = "power";
-            return power * factor;
-        }
-
-        const py::array_t<double> normPowerPython(double power_W = 1)
-        {
-            auto power = normPower(power_W);
-            return py::array_t<double, py::array::c_style>({power.dimension(0), power.dimension(1), power.dimension(2)},
-                                                           power.data());
-        };
-
-        void normPhiStarMPhi(solver::Solver<SpMat> &solver_star)
-        {
-            auto eigen_vectors_star = solver_star.getEigenVectors();
-            // if (eigen_vectors_star.size() != m_eigen_vectors.size())
-            //     throw std::invalid_argument("The number of eigen vectors has the be identical in this and solver_star!");
-
-            int nb_ev = static_cast<int>(std::min(m_eigen_vectors.size(), eigen_vectors_star.size()));
-            for (int i{0}; i < nb_ev; ++i)
-            {
-                double factor = eigen_vectors_star[i].dot(m_M * m_eigen_vectors[i]);
-                m_eigen_vectors[i] = m_eigen_vectors[i] / factor;
-            }
-            m_is_normed = true;
-            m_norm_method = "PhiStarMPhi";
-        }
-
-        void norm(std::string method, solver::Solver<SpMat> &solver_star, double power_W = 1)
-        {
-            if (method == "power")
-                normPower(power_W);
-            else if (method == "PhiStarMPhi")
-                normPhiStarMPhi(solver_star);
-            else
-                throw std::invalid_argument("Invalid method name!");
-        }
+        void norm(std::string method, solver::Solver<SpMat> &solver_star, double power_W = 1);
     };
 
     class SolverPowerIt : public Solver<SpMat>
@@ -326,75 +200,7 @@ namespace solver
 
         template <class T>
         void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
-                            double tol_inner, int outer_max_iter, int inner_max_iter)
-        {
-
-            int pblm_dim = static_cast<int>(m_M.rows());
-            int v0_size = static_cast<int>(v0.size());
-
-            float r_tol = 1e5;
-            float r_tol_ev = 1e5;
-
-            Eigen::VectorXd v(v0);
-            Eigen::VectorXd v_prec(v0);
-
-            if (v0_size == 0)
-            {
-                v.setConstant(pblm_dim, 1.);
-                v_prec.setConstant(pblm_dim, 1.);
-            }
-            else if (v0_size != pblm_dim)
-                throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
-
-            if (nb_eigen_values != 1)
-                throw std::invalid_argument("Only one eigen value can be computed with PI!");
-
-            spdlog::debug("Tolerance in outter iteration (eigen value): {:.2e}", tol);
-            spdlog::debug("Tolerance in outter iteration (eigen vector): {:.2e}", tol_eigen_vectors);
-            spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
-            spdlog::debug("Max. outer iteration : {}", outer_max_iter);
-            spdlog::debug("Max. inner iteration : {}", inner_max_iter);
-
-            double eigen_value = v.norm();
-            double eigen_value_prec = eigen_value;
-
-            T solver;
-            solver.setMaxIterations(inner_max_iter);
-            solver.setTolerance(tol_inner);
-            solver.compute(m_M);
-
-            // outer iteration
-            int i = 0;
-            while ((r_tol > tol || r_tol_ev > tol_eigen_vectors) && i < outer_max_iter)
-            {
-                spdlog::debug("----------------------------------------------------");
-                spdlog::debug("Outer iteration {}", i);
-                auto b = m_K * v;
-                // inner iteration
-                v = solver.solveWithGuess(b, v);
-                spdlog::debug("Number of inner iteration: {}", solver.iterations());
-                spdlog::debug("Estimated error in inner iteration: {:.2e}", solver.error());
-                eigen_value = v.norm();
-                v = v / eigen_value;
-
-                // precision computation
-                r_tol = std::abs(eigen_value - eigen_value_prec);
-                r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff()) / eigen_value;
-                eigen_value_prec = eigen_value;
-                v_prec = v;
-                spdlog::debug("Eigen value = {:.5f}", eigen_value);
-                spdlog::debug("Estimated error in outter iteration (eigen value): {:.2e}", r_tol);
-                spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
-                i++;
-            }
-            spdlog::debug("----------------------------------------------------");
-            m_eigen_values.clear();
-            m_eigen_vectors.clear();
-            m_eigen_values.push_back(eigen_value);
-            m_eigen_vectors.push_back(v);
-            spdlog::debug("Number of outter iteration: {}", i);
-            spdlog::info("Eigen value = {:.5f}", eigen_value);
-        }
+                            double tol_inner, int outer_max_iter, int inner_max_iter);
     };
 
     class SolverSlepc : public Solver<SpMat> // row major for MatCreateSeqAIJWithArrays
@@ -411,6 +217,8 @@ namespace solver
         void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0,
                             double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond);
     };
+
+#include "solver.inl"
 
 } // namespace solver
 

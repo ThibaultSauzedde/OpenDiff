@@ -378,8 +378,8 @@ namespace solver
                 v = v / eigen_value;
 
                 // precision computation
-                r_tol = std::abs(eigen_value - eigen_value_prec); // todo: use relative eps (use the norm for the eigen vectors)
-                r_tol_ev = abs((v - v_prec).maxCoeff());
+                r_tol = std::abs(eigen_value - eigen_value_prec);
+                r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff()) / eigen_value;
                 eigen_value_prec = eigen_value;
                 v_prec = v;
                 spdlog::debug("Eigen value = {:.5f}", eigen_value);

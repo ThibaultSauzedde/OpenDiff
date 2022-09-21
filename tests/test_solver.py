@@ -37,7 +37,7 @@ def test_solverPI_1d(macrolib_1d, datadir):
                             decimal=4)
 
     s.solve(inner_solver="GMRES")
-    assert 0.5513126727936326 == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    assert 0.5513096713596358 == pytest.approx(s.getEigenValues()[0], abs=1e-6)
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
@@ -81,8 +81,8 @@ def test_solverPI_2d(macrolib_2d, datadir):
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh = macrolib_2d
 
-    ref_eigenvalue = 1.0256107535029826
-    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_2d.txt", ref_eigenvector)
+    ref_eigenvalue = 1.0256210451968997
+
     ref_eigenvector = np.loadtxt(datadir / "ev_2d.txt")
     s = solver.SolverPowerIt(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
 
@@ -90,6 +90,8 @@ def test_solverPI_2d(macrolib_2d, datadir):
     # print(s.getEigenValues())
     # print(s.getEigenVectors()[0])
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    # np.savetxt(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_solver/ev_2d.txt", s.getEigenVectors()[0])
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
@@ -157,8 +159,7 @@ def test_solverSlepc_2d(macrolib_2d, datadir):
 def test_solverPI_3d(macrolib_3d, datadir):
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d
-    ref_eigenvalue = 1.115106780351837
-    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_3d.txt", ref_eigenvector)
+    ref_eigenvalue = 1.1151426441284367
     ref_eigenvector = np.loadtxt(datadir / "ev_3d.txt")
     s = solver.SolverPowerIt(x_mesh, y_mesh, z_mesh,
                              macrolib, 1., 0., 1., 0., 0., 0.)
@@ -168,6 +169,8 @@ def test_solverPI_3d(macrolib_3d, datadir):
     # print(s.getEigenValues())
     # print(repr(s.getEigenVectors()[0]))
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    # np.savetxt(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_solver/ev_3d.txt", s.getEigenVectors()[0])
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 

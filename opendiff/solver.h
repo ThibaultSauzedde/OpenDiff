@@ -120,7 +120,7 @@ namespace solver
 
         const auto getEigenVector4D(int i, int dim_x, int dim_y, int dim_z, int nb_groups) const
         {
-            Eigen::TensorMap<Tensor4Dconst> a(m_eigen_vectors[i].data(), dim_z, dim_y, dim_x, nb_groups);
+            Eigen::TensorMap<Tensor4Dconst> a(m_eigen_vectors[i].data(), nb_groups, dim_z, dim_y, dim_x);
             return a;
         };
 
@@ -168,7 +168,7 @@ namespace solver
         virtual void solve(double tol = 1e-6, double tol_eigen_vectors = 1e-4, int nb_eigen_values = 1, const Eigen::VectorXd &v0 = Eigen::VectorXd(),
                            double tol_inner = 1e-6, int outer_max_iter = 500, int inner_max_iter = 200, std::string inner_solver = "BiCGSTAB", std::string inner_precond = "") = 0;
 
-        void handleDenegeratedEigenvalues();
+        void handleDenegeratedEigenvalues(double max_eps = 1e-6);
 
         // todo: use getPower(Tensor4Dconst
         // todo: use matrix muktiplication

@@ -354,7 +354,7 @@ def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir
     delta_recons_ref = np.loadtxt(datadir / "delta_recons_high_2d.txt")
 
     npt.assert_almost_equal(delta.reshape(-1), delta_ref,
-                            decimal=5)
+                            decimal=4)
     npt.assert_almost_equal(delta_recons.reshape(-1), delta_recons_ref,
                             decimal=5)
     # pp.plot_map2d(delta_recons[:, :, :, 0].sum(axis=0), [x_mesh, y_mesh],

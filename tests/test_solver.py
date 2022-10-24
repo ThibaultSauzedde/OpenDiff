@@ -10,7 +10,6 @@ from opendiff import set_log_level, log_level
 def test_solverPI_1d(macrolib_1d, datadir):
     set_log_level(log_level.debug)
     macrolib, x_mesh = macrolib_1d
-    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_1d.txt", ref_eigenvector)
     ref_eigenvector = np.loadtxt(datadir / "ev_1d.txt")
 
     ref_eigenvalue = 0.5513156
@@ -18,6 +17,9 @@ def test_solverPI_1d(macrolib_1d, datadir):
 
     s.solve(inner_solver="SparseLU")
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_1d.txt",
+    #            s.getEigenVectors()[0])
+
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
@@ -37,7 +39,7 @@ def test_solverPI_1d(macrolib_1d, datadir):
                             decimal=4)
 
     s.solve(inner_solver="GMRES")
-    assert 0.5513096713596358 == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    assert 0.5513096713596358 == pytest.approx(s.getEigenValues()[0], abs=1e-5)
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
@@ -46,13 +48,14 @@ def test_solverSlepc_1d(macrolib_1d, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh = macrolib_1d
-    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_1d.txt", ref_eigenvector)
     ref_eigenvector = np.loadtxt(datadir / "ev_slepc_1d.txt")
 
     ref_eigenvalue = 0.5513156
     s = solver.SolverSlepc(x_mesh, macrolib, -1., -1.)
     s.solve()
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_1d.txt",
+    #            s.getEigenVectors()[0])
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
@@ -121,7 +124,6 @@ def test_solverSlepc_2d(macrolib_2d, datadir):
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh = macrolib_2d
 
-    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_2d.txt", ref_eigenvector)
     ref_eigenvector = np.loadtxt(datadir / "ev_slepc_2d.txt")
     # delta_pi = (100*(ref_eigenvector-ref_eigenvector_pi)/ref_eigenvector_pi).reshape((len(y_mesh)-1, len(x_mesh)-1, macrolib.getNbGroups()))
     # print(delta_pi[:, :, 0])
@@ -131,10 +133,11 @@ def test_solverSlepc_2d(macrolib_2d, datadir):
     s = solver.SolverSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
     s.solve()
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_2d.txt", s.getEigenVectors()[0])
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
-    # not convertged enough to get he same results
+    # not converged enough to get he same results
     # # s.solve(solver="power") not working
     # # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
     # # npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
@@ -194,7 +197,6 @@ def test_solverSlepc_3d(macrolib_3d, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d
-    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_3d.txt", ref_eigenvector)
     ref_eigenvector = np.loadtxt(datadir / "ev_slepc_3d.txt")
     ref_eigenvalue = 1.1151426949100507
     s = solver.SolverSlepc(x_mesh, y_mesh, z_mesh,
@@ -205,6 +207,8 @@ def test_solverSlepc_3d(macrolib_3d, datadir):
     # print(repr(s.getEigenVectors()[0]))
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
     ev_0 = s.getEigenVectors()[0]
+    # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_3d.txt", ev_0)
+
     npt.assert_almost_equal(ev_0, ref_eigenvector,
                             decimal=4)
 
@@ -215,13 +219,13 @@ def test_solverSlepc_3d(macrolib_3d, datadir):
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
 
     # Test power
-    # np.savetxt(
-    #     "/home/ts249161/dev/these/openDiff/tests/test_solver/power_3d.txt", power_ref.reshape(-1))
     power_ref = np.loadtxt(datadir / "power_3d.txt")
 
     power = s.getPower()
     power_sum_0 = power.sum()
     # print(repr(power))
+    # np.savetxt(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_solver/power_3d.txt", power.reshape(-1))
     npt.assert_almost_equal(power.reshape(-1), power_ref,
                             decimal=4)
 
@@ -230,7 +234,7 @@ def test_solverSlepc_3d(macrolib_3d, datadir):
     power_sum_1 = power.sum()
     assert power_sum_1 == pytest.approx(1, abs=1e-6)
     ev0 = s.getEigenVector(0)
-    assert ev0.shape == (7, 9, 9, 2)
+    assert ev0.shape == (2, 7, 9, 9)
     npt.assert_almost_equal(power_sum_0 / power_sum_1 * s.getEigenVectors()[0],  ev_0,
                             decimal=4)
 

@@ -29,7 +29,66 @@ namespace operators
     typedef Eigen::Triplet<double> Triplet;
 
     //
-    // template for creating the matrix content in triplet
+    // template for creating the matrix content in triplet for a given nrj group (usefull for the condensed form)
+    //
+
+    template <typename V>
+    std::vector<Triplet> diff_removal_op_triplet(const int i_grp, V &volumes_1d, mat::Macrolib &macrolib,
+                                                 int offset_i = 0, int offset_j = 0);
+    // fission op
+    template <typename V>
+    std::vector<Triplet> diff_fission_op_triplet(const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib,
+                                                 int offset_i = 0, int offset_j = 0);
+    // scatering op
+    template <typename V>
+    std::vector<Triplet> diff_scatering_op_triplet(const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib,
+                                                   int offset_i = 0, int offset_j = 0);
+    // diffusion op 1d
+    template <typename V>
+    std::vector<Triplet> diff_diffusion_op_triplet(const int i_grp, V &dx, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn,
+                                                   int offset_i = 0, int offset_j = 0);
+    // diffusion op 2d
+    template <typename V>
+    std::vector<Triplet> diff_diffusion_op_triplet(const int i_grp, V &dx, V &dy, mat::Macrolib &macrolib,
+                                                   double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn,
+                                                   int offset_i = 0, int offset_j = 0);
+    // diffusion op 3d
+    template <typename V>
+    std::vector<Triplet> diff_diffusion_op_triplet(const int i_grp, V &dx, V &dy, V &dz, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn,
+                                                   double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn,
+                                                   int offset_i = 0, int offset_j = 0);
+
+    // --------------------------------------------------------
+
+    // removal op 
+    template <typename V>
+    void diff_removal_op_triplet(std::vector<Triplet> &coefficients, const int i_grp, V &volumes_1d, mat::Macrolib &macrolib,
+                                 int offset_i = 0, int offset_j = 0);
+    // fission op
+    template <typename V>
+    void diff_fission_op_triplet(std::vector<Triplet> &coefficients, const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib,
+                                 int offset_i = 0, int offset_j = 0);
+    // scatering op
+    template <typename V>
+    void diff_scatering_op_triplet(std::vector<Triplet> &coefficients, const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib,
+                                   int offset_i = 0, int offset_j = 0);
+    // diffusion op 1d
+    template <typename V>
+    void diff_diffusion_op_triplet(std::vector<Triplet> &coefficients, const int i_grp, V &dx, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn,
+                                   int offset_i = 0, int offset_j = 0);
+    // diffusion op 2d
+    template <typename V>
+    void diff_diffusion_op_triplet(std::vector<Triplet> &coefficients, const int i_grp, V &dx, V &dy, mat::Macrolib &macrolib,
+                                   double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn,
+                                   int offset_i = 0, int offset_j = 0);
+    // diffusion op 3d
+    template <typename V>
+    void diff_diffusion_op_triplet(std::vector<Triplet> &coefficients, const int i_grp, V &dx, V &dy, V &dz, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn,
+                                   double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn,
+                                   int offset_i = 0, int offset_j = 0);
+
+    //
+    // template for creating the matrix content in triplet 
     //
 
     template <typename V>
@@ -71,6 +130,31 @@ namespace operators
     template <>
     inline Mat matrix_from_coeff(const std::vector<Triplet> &coefficients, int matrix_size);
 
+
+    //
+    // template operators for one group (for slepc and eigen matrix)
+    //
+
+    template <typename T, typename V>
+    T diff_removal_op(const int i_grp, V &volumes_1d, mat::Macrolib &macrolib);
+
+    template <typename T, typename V>
+    T diff_fission_op(const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib);
+
+    template <typename T, typename V>
+    T diff_scatering_op(const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib);
+
+    template <typename T, typename V>
+    T diff_diffusion_op(const int i_grp, V &dx, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn);
+
+    template <typename T, typename V>
+    T diff_diffusion_op(const int i_grp, V &dx, V &dy, mat::Macrolib &macrolib,
+                        double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
+
+    template <typename T, typename V>
+    T diff_diffusion_op(const int i_grp, V &dx, V &dy, V &dz, mat::Macrolib &macrolib,
+                        double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
+
     //
     // template operators (for slepc and eigen matrix)
     //
@@ -95,25 +179,29 @@ namespace operators
     T diff_diffusion_op(V &dx, V &dy, V &dz, mat::Macrolib &macrolib,
                         double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
 
-    template <typename T, typename V>
-    void diff_removal_op(T &A, V &volumes_1d, mat::Macrolib &macrolib);
+    //
+    // template operators for cond matrices using sub matrices creation
+    //
 
     template <typename T, typename V>
-    void diff_fission_op(T &A, V &volumes_1d, mat::Macrolib &macrolib);
+    T diff_removal_op_cond(V &volumes_1d, mat::Macrolib &macrolib);
 
     template <typename T, typename V>
-    void diff_scatering_op(T &A, V &volumes_1d, mat::Macrolib &macrolib);
+    T diff_fission_op_cond(V &volumes_1d, mat::Macrolib &macrolib);
 
     template <typename T, typename V>
-    void diff_diffusion_op(T &A, V &dx, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn);
+    T diff_scatering_op_cond(V &volumes_1d, mat::Macrolib &macrolib);
 
     template <typename T, typename V>
-    void diff_diffusion_op(T &A, V &dx, V &dy, mat::Macrolib &macrolib,
-                           double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
+    T diff_diffusion_op_cond(V &dx, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn);
 
     template <typename T, typename V>
-    void diff_diffusion_op(T &A, V &dx, V &dy, V &dz, mat::Macrolib &macrolib,
-                           double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
+    T diff_diffusion_op_cond(V &dx, V &dy, mat::Macrolib &macrolib,
+                             double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
+
+    template <typename T, typename V>
+    T diff_diffusion_op_cond(V &dx, V &dy, V &dz, mat::Macrolib &macrolib,
+                             double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
 
     //
     //template for creating M matrix (K is the fission operator)

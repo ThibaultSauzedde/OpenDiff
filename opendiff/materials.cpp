@@ -109,7 +109,7 @@ namespace mat
             throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
 
         if (m_values.find(mat_name) == m_values.end())
-            throw std::invalid_argument("The wanted reac name (" + reac_name + ") is not in the materials");
+            throw std::invalid_argument("The wanted material name (" + mat_name + ") is not in the materials");
         else
             return m_values.at(mat_name)(i_grp - 1, getReactionIndex(reac_name));
     }
@@ -120,7 +120,7 @@ namespace mat
             throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
 
         if (m_values.find(mat_name) == m_values.end())
-            throw std::invalid_argument("The wanted reac name (" + reac_name + ") is not in the materials");
+            throw std::invalid_argument("The wanted material name (" + mat_name + ") is not in the materials");
         else
         {
             m_values.at(mat_name)(i_grp - 1, getReactionIndex(reac_name)) = value;

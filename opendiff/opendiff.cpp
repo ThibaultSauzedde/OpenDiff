@@ -25,6 +25,7 @@
 namespace py = pybind11;
 using vecd = std::vector<double>;
 using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>; // declares a column-major sparse matrix type of double
+using SpMatSimple = Eigen::SparseMatrix<float, Eigen::RowMajor>; // declares a column-major sparse matrix type of float
 
 //todo: use enum instead of string in some cases 
 

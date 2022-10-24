@@ -67,6 +67,13 @@ Solver<T>::Solver(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double alb
     m_macrolib = macrolib;
 }
 
+// void handleDenegeratedEigenvalues(double max_eps)
+// {
+//     // get degenerated eigen values
+
+//     // handle each group of degenerated eigen values (if the eigenvectors are not orthogonal)
+// }
+
 // todo: use getPower(Tensor4Dconst
 // todo: use matrix muktiplication
 template <class T>
@@ -82,7 +89,7 @@ Tensor3D Solver<T>::getPower(int i)
 
     for (int i{0}; i < nb_groups; ++i)
     {
-        power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 3) * m_macrolib.getValues(i + 1, "EFISS");
+        power = power.eval() + m_macrolib.getValues(i + 1, "SIGF") * eigenvectori.chip(i, 0) * m_macrolib.getValues(i + 1, "EFISS");
     }
 
     return power;

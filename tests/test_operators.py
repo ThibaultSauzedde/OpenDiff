@@ -26,6 +26,14 @@ def test_diff_removal_1d(macrolib_1d, datadir):
     dx = x_mesh[1:]-x_mesh[:-1]
     A = op.diff_removal_op(dx, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "r_1d.npz")
+    # import sys
+    # np.set_printoptions(threshold=sys.maxsize)
+    # large_width = 400
+    # np.set_printoptions(linewidth=large_width)
+    # print("\n", A.toarray(), "\n")
+    # print(A_ref.toarray())
+    #scipy.sparse.save_npz(
+    #    "/home/ts249161/dev/these/openDiff/tests/test_operators/r_1d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -34,6 +42,14 @@ def test_diff_fission_1d(macrolib_1d, datadir):
     dx = x_mesh[1:]-x_mesh[:-1]
     A = op.diff_fission_op(dx, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "f_1d.npz")
+    # import sys
+    # np.set_printoptions(threshold=sys.maxsize)
+    # large_width = 400
+    # np.set_printoptions(linewidth=large_width)
+    # print("\n", A.toarray(), "\n")
+    # print(A_ref.toarray())
+    # scipy.sparse.save_npz(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_operators/f_1d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -42,6 +58,14 @@ def test_diff_scatering_1d(macrolib_1d, datadir):
     dx = x_mesh[1:]-x_mesh[:-1]
     A = op.diff_scatering_op(dx, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "s_1d.npz")
+    # import sys
+    # np.set_printoptions(threshold=sys.maxsize)
+    # large_width = 400
+    # np.set_printoptions(linewidth=large_width)
+    # print("\n", A.toarray(), "\n")
+    # print(A_ref.toarray())
+    # scipy.sparse.save_npz(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_operators/s_1d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -56,6 +80,8 @@ def test_diff_diffusion_1d(macrolib_1d, datadir):
     # np.set_printoptions(linewidth=large_width)
     # print("\n", A.toarray(), "\n")
     # print(A_ref.toarray())
+    # scipy.sparse.save_npz(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_operators/d_1d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 def test_diff_removal_2d(macrolib_2d, datadir):
@@ -66,6 +92,8 @@ def test_diff_removal_2d(macrolib_2d, datadir):
     surf_1d = surf.reshape(-1)
     A = op.diff_removal_op(surf_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "r_2d.npz")
+    # scipy.sparse.save_npz(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_operators/r_2d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -77,6 +105,8 @@ def test_diff_fission_2d(macrolib_2d, datadir):
     surf_1d = surf.reshape(-1)
     A = op.diff_fission_op(surf_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "f_2d.npz")
+    # scipy.sparse.save_npz(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_operators/f_2d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -88,6 +118,8 @@ def test_diff_scatering_2d(macrolib_2d, datadir):
     surf_1d = surf.reshape(-1)
     A = op.diff_scatering_op(surf_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "s_2d.npz")
+    # scipy.sparse.save_npz(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_operators/s_2d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -102,6 +134,8 @@ def test_diff_diffusion_2d(macrolib_2d, datadir):
     # np.set_printoptions(threshold=20, edgeitems=10, linewidth=140)
     # print("\n", A.toarray(), "\n")
     # print(A_ref.toarray())
+    # scipy.sparse.save_npz(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_operators/d_2d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 def test_diff_removal_3d(macrolib_3d, datadir):
@@ -114,6 +148,8 @@ def test_diff_removal_3d(macrolib_3d, datadir):
     vol_1d = vol.reshape(-1)
     A = op.diff_removal_op(vol_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "r_3d.npz")
+    # scipy.sparse.save_npz(
+    #     "/home/ts249161/dev/these/openDiff/tests/test_operators/r_3d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -127,6 +163,8 @@ def test_diff_fission_3d(macrolib_3d, datadir):
     vol_1d = vol.reshape(-1)
     A = op.diff_fission_op(vol_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "f_3d.npz")
+    # scipy.sparse.save_npz(
+        # "/home/ts249161/dev/these/openDiff/tests/test_operators/f_3d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -141,6 +179,8 @@ def test_diff_scatering_3d(macrolib_3d, datadir):
 
     A = op.diff_scatering_op(vol_1d, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "s_3d.npz")
+    # scipy.sparse.save_npz(
+        # "/home/ts249161/dev/these/openDiff/tests/test_operators/s_3d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
 
 
@@ -155,4 +195,6 @@ def test_diff_diffusion_3d(macrolib_3d, datadir):
     # formatter = dict( float = lambda x: "%.3g" % x ))
     # print("\n", A.toarray(), "\n")
     # print(A_ref.toarray())
+    # scipy.sparse.save_npz(
+        # "/home/ts249161/dev/these/openDiff/tests/test_operators/d_3d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)

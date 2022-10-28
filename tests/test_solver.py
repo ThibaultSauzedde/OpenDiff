@@ -38,10 +38,10 @@ def test_solverPI_1d(macrolib_1d, datadir):
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
-    s.solve(inner_solver="GMRES")
-    assert 0.5513096713596358 == pytest.approx(s.getEigenValues()[0], abs=1e-5)
-    npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
-                            decimal=4)
+    # s.solve(inner_solver="GMRES")
+    # assert 0.5513096713596358 == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    # npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
+    #                         decimal=4)
 
 
 def test_solverSlepc_1d(macrolib_1d, datadir):
@@ -101,7 +101,7 @@ def test_solverPI_2d(macrolib_2d, datadir):
     s.solve(inner_solver="LeastSquaresConjugateGradient")
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
-                            decimal=4)
+                            decimal=3)
 
     s.solve(inner_solver="BiCGSTAB")
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
@@ -113,10 +113,10 @@ def test_solverPI_2d(macrolib_2d, datadir):
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
-    s.solve(inner_solver="GMRES")
-    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
-    npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
-                            decimal=3)
+    # s.solve(inner_solver="GMRES")
+    # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    # npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
+    #                         decimal=3)
 
 
 def test_solverSlepc_2d(macrolib_2d, datadir):
@@ -129,7 +129,7 @@ def test_solverSlepc_2d(macrolib_2d, datadir):
     # print(delta_pi[:, :, 0])
     # print(delta_pi[:, :, 1])
 
-    ref_eigenvalue = 1.0256209309983306  # 1 pcm de diff avec pi
+    ref_eigenvalue = 1.0256209309983306
     s = solver.SolverSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
     s.solve()
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
@@ -189,8 +189,8 @@ def test_solverPI_3d(macrolib_3d, datadir):
     s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT")
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
 
-    s.solve(inner_solver="GMRES")
-    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    # s.solve(inner_solver="GMRES")
+    # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
 
 
 def test_solverSlepc_3d(macrolib_3d, datadir):

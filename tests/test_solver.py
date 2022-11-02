@@ -13,7 +13,7 @@ def test_solverPI_1d(macrolib_1d, datadir):
     ref_eigenvector = np.loadtxt(datadir / "ev_1d.txt")
 
     ref_eigenvalue = 0.5513156
-    s = solver.SolverPowerIt(x_mesh, macrolib, -1., -1.)
+    s = solver.SolverFullPowerIt(x_mesh, macrolib, -1., -1.)
 
     s.solve(inner_solver="SparseLU")
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
@@ -44,14 +44,14 @@ def test_solverPI_1d(macrolib_1d, datadir):
     #                         decimal=4)
 
 
-def test_solverSlepc_1d(macrolib_1d, datadir):
+def test_SolverFullSlepc_1d(macrolib_1d, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh = macrolib_1d
     ref_eigenvector = np.loadtxt(datadir / "ev_slepc_1d.txt")
 
     ref_eigenvalue = 0.5513156
-    s = solver.SolverSlepc(x_mesh, macrolib, -1., -1.)
+    s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
     s.solve()
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
     # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_1d.txt",
@@ -87,7 +87,7 @@ def test_solverPI_2d(macrolib_2d, datadir):
     ref_eigenvalue = 1.0256210451968997
 
     ref_eigenvector = np.loadtxt(datadir / "ev_2d.txt")
-    s = solver.SolverPowerIt(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
 
     s.solve(inner_solver="SparseLU")
     # print(s.getEigenValues())
@@ -119,7 +119,7 @@ def test_solverPI_2d(macrolib_2d, datadir):
     #                         decimal=3)
 
 
-def test_solverSlepc_2d(macrolib_2d, datadir):
+def test_SolverFullSlepc_2d(macrolib_2d, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh = macrolib_2d
@@ -130,7 +130,7 @@ def test_solverSlepc_2d(macrolib_2d, datadir):
     # print(delta_pi[:, :, 1])
 
     ref_eigenvalue = 1.0256209309983306
-    s = solver.SolverSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
+    s = solver.SolverFullSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
     s.solve()
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
     # np.savetxt("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_slepc_2d.txt", s.getEigenVectors()[0])
@@ -164,7 +164,7 @@ def test_solverPI_3d(macrolib_3d, datadir):
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d
     ref_eigenvalue = 1.1151426441284367
     ref_eigenvector = np.loadtxt(datadir / "ev_3d.txt")
-    s = solver.SolverPowerIt(x_mesh, y_mesh, z_mesh,
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh,
                              macrolib, 1., 0., 1., 0., 0., 0.)
     print(s.getVolumes())
     s.solve(inner_solver="SparseLU")
@@ -193,13 +193,13 @@ def test_solverPI_3d(macrolib_3d, datadir):
     # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
 
 
-def test_solverSlepc_3d(macrolib_3d, datadir):
+def test_SolverFullSlepc_3d(macrolib_3d, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d
     ref_eigenvector = np.loadtxt(datadir / "ev_slepc_3d.txt")
     ref_eigenvalue = 1.1151426949100507
-    s = solver.SolverSlepc(x_mesh, y_mesh, z_mesh,
+    s = solver.SolverFullSlepc(x_mesh, y_mesh, z_mesh,
                            macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve()
     # np.set_printoptions(threshold=100000, edgeitems=10, linewidth=140)
@@ -238,7 +238,7 @@ def test_solverSlepc_3d(macrolib_3d, datadir):
     npt.assert_almost_equal(power_sum_0 / power_sum_1 * s.getEigenVectors()[0],  ev_0,
                             decimal=4)
 
-    s_star = solver.SolverSlepc(s)
+    s_star = solver.SolverFullSlepc(s)
     s_star.makeAdjoint()
     s_star.solve()
     s.normPhiStarMPhi(s_star)
@@ -252,7 +252,7 @@ def test_solverPI_3d_refine_lu(macrolib_3d_refine):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
-    s = solver.SolverPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(inner_solver="SparseLU")
 
 @pytest.mark.integtest
@@ -260,7 +260,7 @@ def test_solverPI_3d_refine_BiCGSTAB(macrolib_3d_refine):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
-    s = solver.SolverPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(inner_solver="BiCGSTAB")
 
 @pytest.mark.integtest
@@ -268,7 +268,7 @@ def test_solverPI_3d_refine_BiCGSTAB_lu(macrolib_3d_refine):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
-    s = solver.SolverPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT")
 
 @pytest.mark.integtest
@@ -276,29 +276,29 @@ def test_solverPI_3d_refine_GMRES(macrolib_3d_refine):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
-    s = solver.SolverPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(inner_solver="GMRES")
 
 @pytest.mark.integtest
-def test_solverSlepc_3d_refine(macrolib_3d_refine):
+def test_SolverFullSlepc_3d_refine(macrolib_3d_refine):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
-    s = solver.SolverSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s = solver.SolverFullSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(outer_max_iter=10000, inner_max_iter=200, tol=1e-6)
 
 @pytest.mark.integtest
-def test_solverSlepc_3d_refine_arnoldi(macrolib_3d_refine):
+def test_SolverFullSlepc_3d_refine_arnoldi(macrolib_3d_refine):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
-    s = solver.SolverSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s = solver.SolverFullSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(solver="arnoldi", outer_max_iter=10000, inner_max_iter=200, tol=1e-6)
 
 @pytest.mark.integtest
-def test_solverSlepc_3d_refine_ibcgs(macrolib_3d_refine):
+def test_SolverFullSlepc_3d_refine_ibcgs(macrolib_3d_refine):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
-    s = solver.SolverSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s = solver.SolverFullSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(inner_solver="ibcgs", outer_max_iter=10000, inner_max_iter=200, tol=1e-6)

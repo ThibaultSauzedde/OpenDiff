@@ -19,11 +19,11 @@ def test_pert_first_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadi
 
     nb_eigen = 49
     ref_eigenvalue = 0.5513156
-    s = solver.SolverSlepc(x_mesh, macrolib, -1., -1.)
+    s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
     s.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
             tol=1e-10, tol_inner=1e-4)
 
-    s_star = solver.SolverSlepc(s)
+    s_star = solver.SolverFullSlepc(s)
     s_star.makeAdjoint()
     s_star.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
                  tol=1e-10, tol_inner=1e-4)
@@ -32,9 +32,9 @@ def test_pert_first_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadi
 
     pert.checkBiOrthogonality(s, s_star, 1e-10, True)
 
-    s_pert = solver.SolverSlepc(
+    s_pert = solver.SolverFullSlepc(
         x_mesh, macrolib_1d_pert_refine, -1., -1.)  # zero flux albedo
-    s_recons = solver.SolverSlepc(s_pert)
+    s_recons = solver.SolverFullSlepc(s_pert)
     s_pert.solve(nb_eigen_values=1, inner_max_iter=500,
                  tol=1e-10, tol_inner=1e-4)
     egval_pert = s_pert.getEigenValues()
@@ -140,11 +140,11 @@ def test_pert_first_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadi
     macrolib, x_mesh, y_mesh = macrolib_2d_refine
 
     nb_eigen = 49
-    s = solver.SolverSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
+    s = solver.SolverFullSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
     s.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
             tol=1e-10, tol_inner=1e-4)
 
-    s_star = solver.SolverSlepc(s)
+    s_star = solver.SolverFullSlepc(s)
     s_star.makeAdjoint()
     s_star.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
                  tol=1e-10, tol_inner=1e-4)
@@ -153,9 +153,9 @@ def test_pert_first_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadi
 
     pert.checkBiOrthogonality(s, s_star, 1e-10, True)
 
-    s_pert = solver.SolverSlepc(
+    s_pert = solver.SolverFullSlepc(
         x_mesh, y_mesh, macrolib_2d_pert_refine, 1., -1., 1., -1.)
-    s_recons = solver.SolverSlepc(s_pert)
+    s_recons = solver.SolverFullSlepc(s_pert)
     s_pert.solve(nb_eigen_values=1, inner_max_iter=500,
                  tol=1e-10, tol_inner=1e-4)
     egval_pert = s_pert.getEigenValues()
@@ -246,11 +246,11 @@ def test_pert_high_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadir
 
     nb_eigen = 49
 
-    s = solver.SolverSlepc(x_mesh, macrolib, -1., -1.)
+    s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
     s.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
             tol=1e-10, tol_inner=1e-4)
 
-    s_star = solver.SolverSlepc(s)
+    s_star = solver.SolverFullSlepc(s)
     s_star.makeAdjoint()
     s_star.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
                  tol=1e-10, tol_inner=1e-4)
@@ -259,9 +259,9 @@ def test_pert_high_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadir
 
     pert.checkBiOrthogonality(s, s_star, 1e-10, True)
 
-    s_pert = solver.SolverSlepc(
+    s_pert = solver.SolverFullSlepc(
         x_mesh, macrolib_1d_pert_refine, -1., -1.)  # zero flux albedo
-    s_recons = solver.SolverSlepc(s_pert)
+    s_recons = solver.SolverFullSlepc(s_pert)
     s_pert.solve(nb_eigen_values=1, inner_max_iter=500,
                  tol=1e-10, tol_inner=1e-4)
     egval_pert = s_pert.getEigenValues()
@@ -292,11 +292,11 @@ def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir
     macrolib, x_mesh, y_mesh = macrolib_2d_refine
 
     nb_eigen = 50
-    s = solver.SolverSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
+    s = solver.SolverFullSlepc(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
     s.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
             tol=1e-10, tol_inner=1e-4)
 
-    s_star = solver.SolverSlepc(s)
+    s_star = solver.SolverFullSlepc(s)
     s_star.makeAdjoint()
     s_star.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
                  tol=1e-10, tol_inner=1e-4)
@@ -305,9 +305,9 @@ def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir
 
     pert.checkBiOrthogonality(s, s_star, 1e-10, True)
 
-    s_pert = solver.SolverSlepc(
+    s_pert = solver.SolverFullSlepc(
         x_mesh, y_mesh, macrolib_2d_pert_refine, 1., -1., 1., -1.)
-    s_recons = solver.SolverSlepc(s_pert)
+    s_recons = solver.SolverFullSlepc(s_pert)
     s_pert.solve(nb_eigen_values=1, inner_max_iter=500,
                  tol=1e-10, tol_inner=1e-4)
     egval_pert = s_pert.getEigenValues()

@@ -15,8 +15,9 @@ namespace perturbation
     using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
     using Tensor2D = Eigen::Tensor<double, 2, Eigen::RowMajor>;
 
-    bool checkBiOrthogonality(solver::Solver<SpMat> &solver, solver::Solver<SpMat> &solver_star, double max_eps, bool raise_error)
+    bool checkBiOrthogonality(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, double max_eps, bool raise_error, bool remove)
     {
+        // todo: remove the ev which are not biorthogonals...
         auto eigen_vectors = solver.getEigenVectors();
         auto eigen_vectors_star = solver_star.getEigenVectors();
 
@@ -51,7 +52,14 @@ namespace perturbation
             return true;
     }
 
-    std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(solver::Solver<SpMat> &solver, solver::Solver<SpMat> &solver_star, solver::Solver<SpMat> &solver_pert, std::string norm_method)
+    // void handleDegeneratedEigenvalues(solver::Solver<SpMat> &solver, solver::Solver<SpMat> &solver_star, double max_eps)
+    // {
+    //     solver.handleDenegeratedEigenvalues(max_eps);
+    //     solver_star.handleDenegeratedEigenvalues(max_eps);
+    //     // check that the vectors are biorthogonals?
+    // }
+
+    std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert, std::string norm_method)
     {
         if (norm_method != "power" && norm_method != "PhiStarMPhi")
             throw std::invalid_argument("Invalid method name!");
@@ -123,8 +131,8 @@ namespace perturbation
         return std::make_tuple(ev_recons, eval_recons, a);
     }
 
-    std::tuple<Eigen::VectorXd, double, Tensor2D> highOrderPerturbation(int order, solver::Solver<SpMat> &solver,
-                                                                        solver::Solver<SpMat> &solver_star, solver::Solver<SpMat> &solver_pert)
+    std::tuple<Eigen::VectorXd, double, Tensor2D> highOrderPerturbation(int order, solver::SolverFull<SpMat> &solver,
+                                                                        solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert)
     {
         order += 1;
         solver.normPower();
@@ -238,8 +246,8 @@ namespace perturbation
         return std::make_tuple(ev_recons, eval_recons, a);
     }
 
-    std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPython(int order, solver::Solver<SpMat> &solver,
-                                                                                         solver::Solver<SpMat> &solver_star, solver::Solver<SpMat> &solver_pert)
+    std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPython(int order, solver::SolverFull<SpMat> &solver,
+                                                                                         solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert)
     {
         auto [ev_recons, eval_recons, a] = highOrderPerturbation(order, solver, solver_star, solver_pert);
         auto a_python = py::array_t<double, py::array::c_style>({a.dimension(0), a.dimension(1)},

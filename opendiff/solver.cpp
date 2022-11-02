@@ -27,7 +27,7 @@ inline Tensor1D delta_coord(vecd &coord)
 
 // todo: use getPower(Tensor4Dconst
 // todo: use matrix muktiplication
-inline Tensor3D Solver::getPower(int i)
+Tensor3D Solver::getPower(int i)
 {
     auto nb_groups = m_macrolib.getNbGroups();
 
@@ -75,14 +75,14 @@ inline Tensor3D Solver::getPower(int i)
 //     return power;
 // }
 
-inline const py::array_t<double> Solver::getPowerPython()
+const py::array_t<double> Solver::getPowerPython()
 {
     auto power = getPower(0);
     return py::array_t<double, py::array::c_style>({power.dimension(0), power.dimension(1), power.dimension(2)},
                                                    power.data());
 }
 
-inline const Tensor3D Solver::normPower(double power_W)
+const Tensor3D Solver::normPower(double power_W)
 {
     auto power = getPower(0);
     Tensor0D power_sum = power.sum();
@@ -96,14 +96,14 @@ inline const Tensor3D Solver::normPower(double power_W)
     return power * factor;
 }
 
-inline const py::array_t<double> Solver::normPowerPython(double power_W)
+const py::array_t<double> Solver::normPowerPython(double power_W)
 {
     auto power = normPower(power_W);
     return py::array_t<double, py::array::c_style>({power.dimension(0), power.dimension(1), power.dimension(2)},
                                                    power.data());
 }
 
-inline void Solver::normPhiStarMPhi(solver::Solver &solver_star)
+void Solver::normPhiStarMPhi(solver::Solver &solver_star)
 {
     auto eigen_vectors_star = solver_star.getEigenVectors();
     // if (eigen_vectors_star.size() != m_eigen_vectors.size())
@@ -112,6 +112,7 @@ inline void Solver::normPhiStarMPhi(solver::Solver &solver_star)
     int nb_ev = static_cast<int>(std::min(m_eigen_vectors.size(), eigen_vectors_star.size()));
     for (int i{0}; i < nb_ev; ++i)
     {
+        //double factor = eigen_vectors_star[i].dot(m_M * m_eigen_vectors[i]);
         double factor = getPhiStarMPhi(solver_star, i);
         m_eigen_vectors[i] = m_eigen_vectors[i] / factor;
     }
@@ -119,7 +120,7 @@ inline void Solver::normPhiStarMPhi(solver::Solver &solver_star)
     m_norm_method = "PhiStarMPhi";
 }
 
-inline void Solver::norm(std::string method, solver::Solver &solver_star, double power_W)
+void Solver::norm(std::string method, solver::Solver &solver_star, double power_W)
 {
     if (method == "power")
         normPower(power_W);

@@ -125,47 +125,49 @@ PYBIND11_MODULE(opendiff, m)
     // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverPowerIt>();
     // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverSlepc>();
 
-    py::class_<solver::Solver<SpMat>>(solver, "Solver")
-        .def("getVolumes", &solver::Solver<SpMat>::getVolumesPython)
-        .def("makeAdjoint", &solver::Solver<SpMat>::makeAdjoint)
-        .def("getEigenValues", &solver::Solver<SpMat>::getEigenValues)
-        .def("getEigenVectors", &solver::Solver<SpMat>::getEigenVectors)
-        .def("getVolumes", &solver::Solver<SpMat>::getVolumesPython)
-        .def("getEigenVector", &solver::Solver<SpMat>::getEigenVectorPython)
-        .def("getPower", &solver::Solver<SpMat>::getPowerPython)
-        .def("normPower", &solver::Solver<SpMat>::normPowerPython,
+    py::class_<solver::Solver>(solver, "Solver")
+        .def("getVolumes", &solver::Solver::getVolumesPython)
+        .def("makeAdjoint", &solver::Solver::makeAdjoint)
+        .def("getEigenValues", &solver::Solver::getEigenValues)
+        .def("getEigenVectors", &solver::Solver::getEigenVectors)
+        .def("getVolumes", &solver::Solver::getVolumesPython)
+        .def("getEigenVector", &solver::Solver::getEigenVectorPython)
+        .def("getPower", &solver::Solver::getPowerPython)
+        .def("normPower", &solver::Solver::normPowerPython,
              py::arg("power_W") = 1.)
-        .def("normPhiStarMPhi", &solver::Solver<SpMat>::normPhiStarMPhi)
-        .def("getK", &solver::Solver<SpMat>::getK)
-        .def("getM", &solver::Solver<SpMat>::getM);
+        .def("normPhiStarMPhi", &solver::Solver::normPhiStarMPhi);
+    
+    py::class_<solver::SolverFull<SpMat>, solver::Solver>(solver, "SolverFull")
+        .def("getK", &solver::SolverFull<SpMat>::getK)
+        .def("getM", &solver::SolverFull<SpMat>::getM);
 
-    py::class_<solver::SolverPowerIt, solver::Solver<SpMat>>(solver, "SolverPowerIt")
-        .def(py::init<const solver::Solver<SpMat> &>())
+    py::class_<solver::SolverFullPowerIt, solver::SolverFull<SpMat>>(solver, "SolverFullPowerIt")
+        .def(py::init<const solver::SolverFullPowerIt &>())
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
-        .def("solve", &solver::SolverPowerIt::solve,
-             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
-             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(),
+        .def("solve", &solver::SolverFullPowerIt::solve,
+             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-5,
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
              py::arg("inner_precond") = "");
 
-    py::class_<solver::SolverSlepc, solver::Solver<SpMat>>(solver, "SolverSlepc")
-        .def(py::init<const solver::Solver<SpMat> &>())
+    py::class_<solver::SolverFullSlepc, solver::SolverFull<SpMat>>(solver, "SolverFullSlepc")
+        .def(py::init<const solver::SolverFullSlepc &>())
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
-        .def("solve", &solver::SolverSlepc::solveIterative,
-             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-4,
-             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(),
+        .def("solve", &solver::SolverFullSlepc::solveIterative,
+             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-5,
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("solver") = "krylovschur",
              py::arg("inner_solver") = "", py::arg("inner_precond") = "");
 
     py::module perturbation = m.def_submodule("perturbation", "A module for the perturbation.");
     perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality,
-                     py::arg("solver"), py::arg("solver_star"),
+                     py::arg("solver"), py::arg("solver_star"), py::arg("ev0") = 1.0,
                      py::arg("max_eps") = 1e-6, py::arg("raise_error") = false);
     perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation);
     perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython);

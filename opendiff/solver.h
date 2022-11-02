@@ -38,13 +38,9 @@ namespace solver
 
     void init_slepc();
 
-    template <class T>
     class Solver
     {
     protected:
-        T m_K{};
-        T m_M{};
-
         mat::Macrolib m_macrolib;
         Tensor1D m_volumes{};
 
@@ -55,20 +51,6 @@ namespace solver
         vecvec m_eigen_vectors{};
 
     public:
-        Solver() = delete;
-        Solver(const Solver &copy) = default;
-        Solver(const T &K, const T &M)
-        {
-            m_K = K;
-            m_M = M;
-        };
-        Solver(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
-               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
-
-        Solver(vecd &x, vecd &y, mat::Macrolib &macrolib,
-               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
-
-        Solver(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn);
 
         void setEigenValues(vecd eigen_values) //we want a copy 
         {
@@ -108,6 +90,13 @@ namespace solver
         {
             return m_eigen_values;
         };
+
+    
+        const auto getEigenValue(int i) const
+        {
+            return m_eigen_values[i];
+        };
+
         const auto &getEigenVectors() const
         {
             return m_eigen_vectors;
@@ -116,6 +105,16 @@ namespace solver
         const auto &getEigenVector(int i) const
         {
             return m_eigen_vectors[i];
+        };
+
+        const auto getEigenVector(int i, int i_grp) const
+        {
+            if (i_grp < 1 || i_grp > m_macrolib.getNbGroups())
+                throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
+
+            auto dim = m_macrolib.getDim();
+            auto dim_xyz = std::get<2>(dim)*std::get<1>(dim)* std::get<0>(dim);
+            return m_eigen_vectors[i](Eigen::seqN(dim_xyz * (i_grp -1), dim_xyz));
         };
 
         const auto getEigenVector4D(int i, int dim_x, int dim_y, int dim_z, int nb_groups) const
@@ -148,15 +147,6 @@ namespace solver
         //     }
         // }
 
-        const auto &getK() const
-        {
-            return m_K;
-        };
-        const auto &getM() const
-        {
-            return m_M;
-        };
-
         const auto &getVolumes() const
         {
             return m_volumes;
@@ -168,11 +158,7 @@ namespace solver
                                                            m_volumes.data());
         };
 
-        virtual void makeAdjoint()
-        {
-            m_M = m_M.adjoint();
-            m_K = m_K.adjoint();
-        };
+        virtual void makeAdjoint() = 0;
 
         virtual void solve(double tol = 1e-6, double tol_eigen_vectors = 1e-4, int nb_eigen_values = 1, const Eigen::VectorXd &v0 = Eigen::VectorXd(), double ev0 = 1,
                            double tol_inner = 1e-6, int outer_max_iter = 500, int inner_max_iter = 200, std::string inner_solver = "BiCGSTAB", std::string inner_precond = "") = 0;
@@ -189,18 +175,67 @@ namespace solver
 
         const py::array_t<double> normPowerPython(double power_W = 1);
 
-        void normPhiStarMPhi(solver::Solver<SpMat> &solver_star);
+        void normPhiStarMPhi(solver::Solver &solver_star);
 
-        void norm(std::string method, solver::Solver<SpMat> &solver_star, double power_W = 1);
+        virtual double getPhiStarMPhi(solver::Solver &solver_star, int i) = 0;
+
+        void norm(std::string method, solver::Solver &solver_star, double power_W = 1);
     };
 
-    class SolverPowerIt : public Solver<SpMat>
+    template <class T>
+    class SolverFull : public Solver
+    {
+    protected:
+        T m_K{};
+        T m_M{};
+
+    public:
+        using Solver::Solver;
+
+        SolverFull(const SolverFull &copy) = default;
+
+        SolverFull(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
+               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
+
+        SolverFull(vecd &x, vecd &y, mat::Macrolib &macrolib,
+               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
+
+        SolverFull(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn);
+
+        SolverFull(const T &K, const T &M)
+        {
+            m_K = K;
+            m_M = M;
+        };
+
+        const auto &getK() const
+        {
+            return m_K;
+        };
+        const auto &getM() const
+        {
+            return m_M;
+        };
+
+        void makeAdjoint()
+        {
+            m_M = m_M.adjoint();
+            m_K = m_K.adjoint();
+        };
+
+        double getPhiStarMPhi(solver::Solver &solver_star, int i)
+        {
+            return solver_star.getEigenVectors()[i].dot(m_M * m_eigen_vectors[i]);
+        };
+    };
+    
+
+    class SolverFullPowerIt : public SolverFull<SpMat>
     {
     public:
-        SolverPowerIt(const Solver &copy) : Solver(copy){};
-        SolverPowerIt(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn) : Solver(x, macrolib, albedo_x0, albedo_xn){};
-        SolverPowerIt(vecd &x, vecd &y, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn) : Solver(x, y, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn){};
-        SolverPowerIt(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn) : Solver(x, y, z, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn){};
+        using SolverFull<SpMat>::SolverFull;
+
+        // SolverFullPowerIt(const SolverFullPowerIt &copy) = default;
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                    double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
@@ -212,13 +247,12 @@ namespace solver
                             double tol_inner, int outer_max_iter, int inner_max_iter);
     };
 
-    class SolverSlepc : public Solver<SpMat> // row major for MatCreateSeqAIJWithArrays
+    class SolverFullSlepc : public SolverFull<SpMat> // row major for MatCreateSeqAIJWithArrays
     {
     public:
-        SolverSlepc(const Solver &copy) : Solver(copy){};
-        SolverSlepc(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn) : Solver(x, macrolib, albedo_x0, albedo_xn){};
-        SolverSlepc(vecd &x, vecd &y, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn) : Solver(x, y, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn){};
-        SolverSlepc(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn) : Solver(x, y, z, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn){};
+        using SolverFull<SpMat>::SolverFull;
+
+        // SolverFullSlepc(const SolverFullSlepc &copy) = default;
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                    double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;

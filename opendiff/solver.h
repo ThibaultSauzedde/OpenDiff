@@ -61,6 +61,29 @@ namespace solver
             m_eigen_vectors = eigen_vectors;
         };
 
+        void setEigenVector(int i, Eigen::VectorXd eigen_vector)
+        {
+            if (m_eigen_vectors.empty())
+                throw std::invalid_argument("m_eigen_vectors is empty");
+            if (static_cast<int>(m_eigen_vectors.size()) <= i )
+                throw std::invalid_argument("m_eigen_vectors size <= i");
+
+            m_eigen_vectors[i] = eigen_vector ;
+        };
+
+        void setEigenVector(int i, int i_grp, Eigen::VectorXd eigen_vector)
+        {
+            if (m_eigen_vectors.empty())
+                throw std::invalid_argument("m_eigen_vectors is empty");
+            if (static_cast<int>(m_eigen_vectors.size()) <= i )
+                throw std::invalid_argument("m_eigen_vectors size <= i");
+
+            
+            auto dim = m_macrolib.getDim();
+            auto dim_xyz = std::get<2>(dim)*std::get<1>(dim)* std::get<0>(dim);
+            m_eigen_vectors[i](Eigen::seqN(dim_xyz * (i_grp -1), dim_xyz)) = eigen_vector ;
+        };
+
         void clearEigenValues()
         {
             m_eigen_values.clear();
@@ -94,7 +117,22 @@ namespace solver
     
         const auto getEigenValue(int i) const
         {
+            if (m_eigen_values.empty())
+                throw std::invalid_argument("m_eigen_values is empty");
+            if (static_cast<int>(m_eigen_values.size()) <= i)
+                throw std::invalid_argument("m_eigen_values size <= i");
+
             return m_eigen_values[i];
+        };
+
+        const auto getEigenVector(int i_grp, Eigen::VectorXd &eigen_vector) const
+        {
+            if (i_grp < 1 || i_grp > m_macrolib.getNbGroups())
+                throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
+
+            auto dim = m_macrolib.getDim();
+            auto dim_xyz = std::get<2>(dim)*std::get<1>(dim)* std::get<0>(dim);
+            return eigen_vector(Eigen::seqN(dim_xyz * (i_grp -1), dim_xyz));
         };
 
         const auto &getEigenVectors() const
@@ -104,22 +142,23 @@ namespace solver
 
         const auto &getEigenVector(int i) const
         {
+            if (m_eigen_vectors.empty())
+                throw std::invalid_argument("m_eigen_vectors is empty");
+            if (static_cast<int>(m_eigen_vectors.size()) <= i )
+                throw std::invalid_argument("m_eigen_vectors size <= i");
+
             return m_eigen_vectors[i];
         };
 
         const auto getEigenVector(int i, int i_grp) const
         {
-            if (i_grp < 1 || i_grp > m_macrolib.getNbGroups())
-                throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
-
-            auto dim = m_macrolib.getDim();
-            auto dim_xyz = std::get<2>(dim)*std::get<1>(dim)* std::get<0>(dim);
-            return m_eigen_vectors[i](Eigen::seqN(dim_xyz * (i_grp -1), dim_xyz));
+            auto evi = getEigenVector(i) ; 
+            return getEigenVector(i_grp, evi);
         };
 
         const auto getEigenVector4D(int i, int dim_x, int dim_y, int dim_z, int nb_groups) const
         {
-            Eigen::TensorMap<Tensor4Dconst> a(m_eigen_vectors[i].data(), nb_groups, dim_z, dim_y, dim_x);
+            Eigen::TensorMap<Tensor4Dconst> a(getEigenVector(i).data(), nb_groups, dim_z, dim_y, dim_x);
             return a;
         };
 
@@ -180,6 +219,15 @@ namespace solver
         virtual double getPhiStarMPhi(solver::Solver &solver_star, int i) = 0;
 
         void norm(std::string method, solver::Solver &solver_star, double power_W = 1);
+
+        template <class T>
+        void initInnerSolver(T &inner_solver, double tol_inner, int inner_max_iter);
+
+        template <class T>
+        Eigen::VectorXd solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::VectorXd &x);
+
+        template <class T>
+        Eigen::VectorXd solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::VectorBlock<Eigen::VectorXd> &x);
     };
 
     template <class T>
@@ -235,12 +283,8 @@ namespace solver
     public:
         using SolverFull<SpMat>::SolverFull;
 
-        // SolverFullPowerIt(const SolverFullPowerIt &copy) = default;
-
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                    double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
-
-        void solveLU(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0, int outer_max_iter);
 
         template <class T>
         void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
@@ -252,14 +296,65 @@ namespace solver
     public:
         using SolverFull<SpMat>::SolverFull;
 
-        // SolverFullSlepc(const SolverFullSlepc &copy) = default;
-
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                    double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
 
         void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                             double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond);
     };
+
+
+    template <class T>
+    class SolverCond : public Solver
+    {
+    protected:
+        std::vector<T> m_F{};
+        std::vector<T> m_chi{};
+        std::vector<T> m_A{};
+        std::vector<std::vector<T>> m_S{};
+
+    public:
+        using Solver::Solver;
+
+        SolverCond(const SolverCond &copy) = default;
+
+        SolverCond(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
+               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
+
+        SolverCond(vecd &x, vecd &y, mat::Macrolib &macrolib,
+               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
+
+        SolverCond(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn);
+
+        const auto getFissionSource(Eigen::VectorXd &eigen_vector) ; 
+
+
+        void makeAdjoint()
+        {
+            //todo: fill it
+        };
+
+        double getPhiStarMPhi(solver::Solver &solver_star, int i)
+        {
+            //todo: fill it
+            return 1.0 ; 
+        };
+    };
+
+    class SolverCondPowerIt : public SolverCond<SpMat>
+    {
+    public:
+        using SolverCond<SpMat>::SolverCond;
+
+        void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
+
+
+        template <class T>
+        void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                            double tol_inner, int outer_max_iter, int inner_max_iter);
+    };
+
 
 #include "solver.inl"
 

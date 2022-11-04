@@ -26,12 +26,12 @@ def test_diff_removal_1d(macrolib_1d, datadir):
     dx = x_mesh[1:]-x_mesh[:-1]
     A = op.diff_removal_op(dx, macrolib)
     A_ref = scipy.sparse.load_npz(datadir / "r_1d.npz")
-    # import sys
-    # np.set_printoptions(threshold=sys.maxsize)
-    # large_width = 400
-    # np.set_printoptions(linewidth=large_width)
+    import sys
+    np.set_printoptions(threshold=sys.maxsize)
+    large_width = 400
+    np.set_printoptions(linewidth=large_width)
     # print("\n", A.toarray(), "\n")
-    # print(A_ref.toarray())
+    print(A_ref.toarray())
     #scipy.sparse.save_npz(
     #    "/home/ts249161/dev/these/openDiff/tests/test_operators/r_1d.npz", A, compressed=True)
     assert allclose_sparse(A, A_ref)
@@ -74,11 +74,11 @@ def test_diff_diffusion_1d(macrolib_1d, datadir):
     dx = x_mesh[1:]-x_mesh[:-1]
     A = op.diff_diffusion_op_1d(dx, macrolib, -1., -1.)
     A_ref = scipy.sparse.load_npz(datadir / "d_1d.npz")
-    # import sys
-    # np.set_printoptions(threshold=sys.maxsize)
-    # large_width = 400
-    # np.set_printoptions(linewidth=large_width)
-    # print("\n", A.toarray(), "\n")
+    import sys
+    np.set_printoptions(threshold=sys.maxsize)
+    large_width = 400
+    np.set_printoptions(linewidth=large_width)
+    print("\n", A.toarray(), "\n")
     # print(A_ref.toarray())
     # scipy.sparse.save_npz(
     #     "/home/ts249161/dev/these/openDiff/tests/test_operators/d_1d.npz", A, compressed=True)

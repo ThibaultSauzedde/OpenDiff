@@ -52,9 +52,15 @@ void diff_fission_op_triplet(std::vector<Triplet> &coefficients, const int i_grp
         throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp_p) + ") is not in the materials");
 
     int nb_cells = static_cast<int>(volumes_1d.size());
-
+    
     for (int i{0}; i < nb_cells; ++i)
     {
+        if (macrolib.getValues1D(i_grp_p, "CHI")[i] < 10 * std::numeric_limits<double>::lowest())
+            continue ;
+        
+        if (macrolib.getValues1D(i_grp, "NU_SIGF")[i] < 10 * std::numeric_limits<double>::lowest())
+            continue ;
+
         auto t = Triplet(offset_i + i, offset_j + i, macrolib.getValues1D(i_grp, "NU_SIGF")[i] * macrolib.getValues1D(i_grp_p, "CHI")[i] * volumes_1d[i]);
         coefficients.push_back(t);
     }
@@ -86,6 +92,46 @@ std::vector<Triplet> diff_fission_op_triplet(V &volumes_1d, mat::Macrolib &macro
     return coefficients;
 }
 
+template <typename V>
+std::vector<Triplet> diff_fission_op_triplet(const int i_grp, V &volumes_1d, mat::Macrolib &macrolib)
+{
+    if (i_grp < 1 || i_grp > macrolib.getNbGroups())
+        throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
+
+    int nb_cells = static_cast<int>(volumes_1d.size());
+    std::vector<Triplet> coefficients{};
+    coefficients.reserve(nb_cells);
+    for (int i{0}; i < nb_cells; ++i)
+    {
+        if (macrolib.getValues1D(i_grp, "NU_SIGF")[i] < 10 * std::numeric_limits<double>::lowest())
+            continue ;
+
+        auto t = Triplet(i, i, macrolib.getValues1D(i_grp, "NU_SIGF")[i] * volumes_1d[i]);
+        coefficients.push_back(t);
+    }
+    return coefficients ; 
+}
+
+template <typename V>
+std::vector<Triplet> diff_fission_spectrum_op_triplet(const int i_grp, V &volumes_1d, mat::Macrolib &macrolib)
+{
+    if (i_grp < 1 || i_grp > macrolib.getNbGroups())
+        throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
+
+    int nb_cells = static_cast<int>(volumes_1d.size());
+    std::vector<Triplet> coefficients{};
+    coefficients.reserve(nb_cells);
+    for (int i{0}; i < nb_cells; ++i)
+    {
+        if (macrolib.getValues1D(i_grp, "CHI")[i] < 10 * std::numeric_limits<double>::lowest())
+            continue ;
+
+        auto t = Triplet(i, i, macrolib.getValues1D(i_grp, "CHI")[i]);
+        coefficients.push_back(t);
+    }
+    return coefficients ; 
+}
+
 // scatering op
 template <typename V>
 void diff_scatering_op_triplet(std::vector<Triplet> &coefficients, const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib,
@@ -98,9 +144,14 @@ void diff_scatering_op_triplet(std::vector<Triplet> &coefficients, const int i_g
 
     int nb_cells = static_cast<int>(volumes_1d.size());
 
+    auto xs = macrolib.getValues1D(i_grp, std::to_string(i_grp_p)) ;
+
     for (int i{0}; i < nb_cells; ++i)
     {
-        auto t = Triplet(offset_i + i, offset_j + i, macrolib.getValues1D(i_grp, std::to_string(i_grp_p))[i] * volumes_1d[i]);
+        if (xs[i] < 10 * std::numeric_limits<double>::lowest())
+            continue ;
+
+        auto t = Triplet(offset_i + i, offset_j + i, xs[i] * volumes_1d[i]);
         coefficients.push_back(t);
     }
 }
@@ -558,7 +609,7 @@ template <typename T, typename V>
 T diff_removal_op(const int i_grp, V &volumes_1d, mat::Macrolib &macrolib)
 {
     auto coefficients = diff_removal_op_triplet(i_grp, volumes_1d, macrolib);
-    int matrix_size = macrolib.getNbGroups() * static_cast<int>(volumes_1d.size());
+    int matrix_size = static_cast<int>(volumes_1d.size());
     return matrix_from_coeff<T>(coefficients, matrix_size);
 }
 
@@ -566,7 +617,23 @@ template <typename T, typename V>
 T diff_fission_op(const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib)
 {
     auto coefficients = diff_fission_op_triplet(i_grp, i_grp_p, volumes_1d, macrolib);
-    int matrix_size = macrolib.getNbGroups() * static_cast<int>(volumes_1d.size());
+    int matrix_size = static_cast<int>(volumes_1d.size());
+    return matrix_from_coeff<T>(coefficients, matrix_size);
+}
+
+template <typename T, typename V>
+T diff_fission_op(const int i_grp, V &volumes_1d, mat::Macrolib &macrolib)
+{
+    auto coefficients = diff_fission_op_triplet(i_grp, volumes_1d, macrolib);
+    int matrix_size = static_cast<int>(volumes_1d.size());
+    return matrix_from_coeff<T>(coefficients, matrix_size);
+}
+
+template <typename T, typename V>
+T diff_fission_spectrum_op(const int i_grp, V &volumes_1d, mat::Macrolib &macrolib)
+{
+    auto coefficients = diff_fission_spectrum_op_triplet(i_grp, volumes_1d, macrolib);
+    int matrix_size = static_cast<int>(volumes_1d.size());
     return matrix_from_coeff<T>(coefficients, matrix_size);
 }
 
@@ -574,7 +641,7 @@ template <typename T, typename V>
 T diff_scatering_op(const int i_grp, const int i_grp_p, V &volumes_1d, mat::Macrolib &macrolib)
 {
     auto coefficients = diff_scatering_op_triplet(i_grp, i_grp_p, volumes_1d, macrolib);
-    int matrix_size = macrolib.getNbGroups() * static_cast<int>(volumes_1d.size());
+    int matrix_size = static_cast<int>(volumes_1d.size());
     return matrix_from_coeff<T>(coefficients, matrix_size);
 }
 
@@ -582,7 +649,7 @@ template <typename T, typename V>
 T diff_diffusion_op(const int i_grp, V &dx, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn)
 {
     auto coefficients = diff_diffusion_op_triplet(i_grp, dx, macrolib, albedo_x0, albedo_xn);
-    int matrix_size = macrolib.getNbGroups() * static_cast<int>(dx.size());
+    int matrix_size = static_cast<int>(dx.size());
     return matrix_from_coeff<T>(coefficients, matrix_size);
 }
 
@@ -591,7 +658,7 @@ T diff_diffusion_op(const int i_grp, V &dx, V &dy, mat::Macrolib &macrolib,
                     double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn)
 {
     auto coefficients = diff_diffusion_op_triplet(i_grp, dx, dy, macrolib, albedo_x0, albedo_xn, albedo_y0, albedo_yn);
-    int matrix_size = macrolib.getNbGroups() * static_cast<int>(dx.size() * dy.size());
+    int matrix_size = static_cast<int>(dx.size() * dy.size());
     return matrix_from_coeff<T>(coefficients, matrix_size);
 }
 
@@ -601,7 +668,7 @@ T diff_diffusion_op(const int i_grp, V &dx, V &dy, V &dz, mat::Macrolib &macroli
 {
     auto coefficients = diff_diffusion_op_triplet(i_grp, dx, dy, dz, macrolib, albedo_x0, albedo_xn,
                                                   albedo_y0, albedo_yn, albedo_z0, albedo_zn);
-    int matrix_size = macrolib.getNbGroups() * static_cast<int>(dx.size() * dy.size() * dz.size());
+    int matrix_size = static_cast<int>(dx.size() * dy.size() * dz.size());
     return matrix_from_coeff<T>(coefficients, matrix_size);
 }
 
@@ -765,3 +832,35 @@ inline Mat setup_m_operators(Mat &D, Tensor1D volumes, mat::Macrolib &macrolib)
     MatAXPY(M, -1.0, D, SAME_NONZERO_PATTERN);
     return M;
 }
+
+//
+//template for creating the cond operators 
+//
+template <typename T, typename V>
+void setup_cond_operators(std::vector<T> &F, std::vector<T> &chi, std::vector<T> &A, std::vector<std::vector<T>> &S,
+                       std::vector<T> &D, V volumes, mat::Macrolib &macrolib)
+{
+    for (int g{0}; g < macrolib.getNbGroups(); ++g)
+    {
+        F.push_back(operators::diff_fission_op<T, Tensor1D>(g+1, volumes, macrolib));
+        chi.push_back(operators::diff_fission_spectrum_op<T, Tensor1D>(g+1, volumes, macrolib));
+
+        auto ag = operators::diff_removal_op<T, Tensor1D>(g+1, volumes, macrolib) ;
+        ag -= D[g] ;
+        A.push_back(ag);
+
+        std::vector<T> sg {};
+        for (int gp{0}; gp < macrolib.getNbGroups(); ++gp)
+        {
+            if (gp <= g)
+            {
+                auto null = T{};
+                sg.push_back(null);
+            }
+            else
+                sg.push_back(operators::diff_scatering_op<T, Tensor1D>(g+1, gp+1, volumes, macrolib));
+        }
+        S.push_back(sg);
+    }
+}
+

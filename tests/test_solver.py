@@ -23,13 +23,13 @@ def test_solverPI_1d(macrolib_1d, datadir):
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
-    # s.solve(inner_solver="LeastSquaresConjugateGradient")
-    # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
-    # npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
-    #                         decimal=4)
+    s.solve(inner_solver="LeastSquaresConjugateGradient", outer_max_iter=1000, inner_max_iter=50)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
+                            decimal=4)
 
     s.solve(inner_solver="BiCGSTAB")
-    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
@@ -38,10 +38,41 @@ def test_solverPI_1d(macrolib_1d, datadir):
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
-    # s.solve(inner_solver="GMRES")
-    # assert 0.5513096713596358 == pytest.approx(s.getEigenValues()[0], abs=1e-5)
-    # npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
-    #                         decimal=4)
+    s.solve(inner_solver="GMRES")
+    assert 0.5513096713596358 == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
+                            decimal=4)
+
+def test_solverCondPI_1d(macrolib_1d, datadir):
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d
+    ref_eigenvector = np.loadtxt(datadir / "ev_1d.txt")
+    print(x_mesh)
+
+    ref_eigenvector = np.loadtxt(datadir / "ev_1d.txt")
+    ref_eigenvalue = 0.5513156
+    s = solver.SolverCondPowerIt(x_mesh, macrolib, -1., -1.)
+
+    s.solve(inner_solver="BiCGSTAB")
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    coeff = s.getEigenVectors()[0][0] / ref_eigenvector[0]
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+    s.solve(inner_solver="LeastSquaresConjugateGradient", outer_max_iter=1000, inner_max_iter=50)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+    s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT")
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+    s.solve(inner_solver="GMRES")
+    assert 0.5513096713596358 == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
 
 
 def test_SolverFullSlepc_1d(macrolib_1d, datadir):
@@ -103,22 +134,52 @@ def test_solverPI_2d(macrolib_2d, datadir):
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=3)
 
-    s.solve(inner_solver="BiCGSTAB")
-    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    s.solve(inner_solver="BiCGSTAB", outer_max_iter=1000, inner_max_iter=50)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=3e-5)
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
-                            decimal=4)
+                            decimal=3)
 
     s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT")
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
-    # s.solve(inner_solver="GMRES")
-    # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
-    # npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
-    #                         decimal=3)
+    s.solve(inner_solver="GMRES", outer_max_iter=1000, inner_max_iter=50)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
+                            decimal=4)
 
+def test_solverCondPI_2d(macrolib_2d, datadir):
+    set_log_level(log_level.debug)
+    macrolib, x_mesh, y_mesh = macrolib_2d
 
+    ref_eigenvalue = 1.0256210451968997
+
+    ref_eigenvector = np.loadtxt(datadir / "ev_2d.txt")
+    s = solver.SolverCondPowerIt(x_mesh, y_mesh, macrolib, 1., -1., 1., -1.)
+    s.solve(inner_solver="BiCGSTAB", tol_eigen_vectors=1e-7)
+
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    coeff = s.getEigenVectors()[0][0] / ref_eigenvector[0]
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+    s.solve(inner_solver="BiCGSTAB")
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+    s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT")
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+    s.solve(inner_solver="GMRES", outer_max_iter=1000, inner_max_iter=50)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+                  
 def test_SolverFullSlepc_2d(macrolib_2d, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
@@ -166,8 +227,8 @@ def test_solverPI_3d(macrolib_3d, datadir):
     ref_eigenvector = np.loadtxt(datadir / "ev_3d.txt")
     s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh,
                              macrolib, 1., 0., 1., 0., 0., 0.)
-    print(s.getVolumes())
-    s.solve(inner_solver="SparseLU")
+
+    s.solve(inner_solver="SparseLU", outer_max_iter=10000)
     # np.set_printoptions(threshold=100000, edgeitems=10, linewidth=140)
     # print(s.getEigenValues())
     # print(repr(s.getEigenVectors()[0]))
@@ -177,21 +238,64 @@ def test_solverPI_3d(macrolib_3d, datadir):
     npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
                             decimal=4)
 
-    # s.solve(inner_solver="LeastSquaresConjugateGradient")
-    # print(s.getEigenValues()[0])
-    # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    s.solve(inner_solver="LeastSquaresConjugateGradient", outer_max_iter=10000, inner_max_iter=50)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
     # npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
     #                         decimal=4)
 
-    # s.solve(inner_solver="BiCGSTAB", outer_max_iter=1000)
-    # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    s.solve(inner_solver="BiCGSTAB", outer_max_iter=3000, inner_max_iter=50, tol_inner=1e-5)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
+                            decimal=4) # convergence issue
 
-    s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT")
+
+    s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT", outer_max_iter=10000, inner_max_iter=50)
     assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
+                            decimal=4)
 
-    # s.solve(inner_solver="GMRES")
-    # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    s.solve(inner_solver="GMRES", outer_max_iter=1000, inner_max_iter=500)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    npt.assert_almost_equal(s.getEigenVectors()[0], ref_eigenvector,
+                            decimal=4)
 
+def test_solverCondPI_3d(macrolib_3d, datadir):
+    set_log_level(log_level.debug)
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d
+    ref_eigenvalue = 1.1151426441284367
+    ref_eigenvector = np.loadtxt(datadir / "ev_3d.txt")
+    s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh,
+                             macrolib, 1., 0., 1., 0., 0., 0.)
+
+    s.solve(inner_solver="SparseLU", tol_eigen_vectors=1e-7, outer_max_iter=1000, inner_max_iter=500)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    coeff = s.getEigenVectors()[0][0] / ref_eigenvector[0]
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+                            
+    s.solve(inner_solver="LeastSquaresConjugateGradient", tol_eigen_vectors=1e-7, outer_max_iter=1000, inner_max_iter=500)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    coeff = s.getEigenVectors()[0][0] / ref_eigenvector[0]
+    # npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+    #                         decimal=4)
+
+    s.solve(inner_solver="BiCGSTAB", tol_inner=1e-7, tol_eigen_vectors=1e-7, outer_max_iter=2000, inner_max_iter=1000)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    coeff = s.getEigenVectors()[0][0] / ref_eigenvector[0]
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+
+    s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT", tol_eigen_vectors=1e-7, outer_max_iter=1000, inner_max_iter=500)
+    assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-6)
+    coeff = s.getEigenVectors()[0][0] / ref_eigenvector[0]
+    npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+                            decimal=4)
+
+    # s.solve(inner_solver="GMRES", tol_eigen_vectors=1e-7, outer_max_iter=1000, inner_max_iter=500)
+    # assert ref_eigenvalue == pytest.approx(s.getEigenValues()[0], abs=1e-5)
+    # npt.assert_almost_equal(s.getEigenVectors()[0]/coeff, ref_eigenvector,
+    #                         decimal=4) # diverge !!! 
 
 def test_SolverFullSlepc_3d(macrolib_3d, datadir):
     solver.init_slepc()

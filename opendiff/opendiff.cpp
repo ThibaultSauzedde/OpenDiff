@@ -165,6 +165,22 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("inner_max_iter") = 20, py::arg("solver") = "krylovschur",
              py::arg("inner_solver") = "", py::arg("inner_precond") = "");
 
+    py::class_<solver::SolverCond<SpMat>, solver::Solver>(solver, "SolverCond");
+
+    py::class_<solver::SolverCondPowerIt, solver::SolverCond<SpMat>>(solver, "SolverCondPowerIt")
+        .def(py::init<const solver::SolverCondPowerIt &>())
+        .def(py::init<vecd &, mat::Macrolib &, double, double>())
+        .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
+        .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
+        .def("solve", &solver::SolverCondPowerIt::solve,
+             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-5,
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
+             py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
+             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
+             py::arg("inner_precond") = "");
+
+
+
     py::module perturbation = m.def_submodule("perturbation", "A module for the perturbation.");
     perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality,
                      py::arg("solver"), py::arg("solver_star"), py::arg("ev0") = 1.0,

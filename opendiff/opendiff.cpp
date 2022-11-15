@@ -135,8 +135,9 @@ PYBIND11_MODULE(opendiff, m)
         .def("getPower", &solver::Solver::getPowerPython)
         .def("normPower", &solver::Solver::normPowerPython,
              py::arg("power_W") = 1.)
-        .def("normPhiStarMPhi", &solver::Solver::normPhiStarMPhi);
-    
+        .def("normPhiStarMPhi", &solver::Solver::normPhiStarMPhi)
+        .def("removeEigenVectors", &solver::Solver::removeEigenVectors);
+
     py::class_<solver::SolverFull<SpMat>, solver::Solver>(solver, "SolverFull")
         .def("getK", &solver::SolverFull<SpMat>::getK)
         .def("getM", &solver::SolverFull<SpMat>::getM);

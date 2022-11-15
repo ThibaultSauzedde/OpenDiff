@@ -12,6 +12,34 @@ from opendiff import set_log_level, log_level
 
 import grid_post_process as pp
 
+
+def test_checkBiOrthogonality(macrolib_1d_refine):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d_refine
+
+    nb_eigen = 90
+    s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
+    s.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
+            tol=1e-10, tol_inner=1e-4)
+
+    s_star = solver.SolverFullSlepc(s)
+    s_star.makeAdjoint()
+    s_star.solve(nb_eigen_values=nb_eigen, inner_max_iter=500,
+                 tol=1e-10, tol_inner=1e-4)
+
+    assert len(s.getEigenValues()) == 91
+    assert len(s_star.getEigenValues()) == 91
+
+    pert.checkBiOrthogonality(s, s_star, 1e-10, False, True)
+
+    assert len(s.getEigenValues()) == 51
+    assert len(s_star.getEigenValues()) == 51
+
+    pert.checkBiOrthogonality(s, s_star, 1e-10, True)
+
+
+
 def test_pert_first_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)

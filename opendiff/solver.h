@@ -177,14 +177,18 @@ namespace solver
                                                            ev.data());
         };
 
-        // void removeEigenVectors(std::vector<int> ids)
-        // {
-        //     for (auto id : ids)
-        //     {
-        //         m_eigen_values.erase(m_eigen_values.begin() + i);
-        //         m_eigen_vectors.erase(m_eigen_vectors.begin() + i);
-        //     }
-        // }
+        void removeEigenVectors(std::vector<int> ids)
+        {
+            // sort in order to remove the proper id
+            std::sort(ids.begin(), ids.end(), std::greater<int>());
+            auto last = std::unique(ids.begin(), ids.end());
+            ids.erase(last, ids.end());
+            for (auto id : ids)
+            {
+                m_eigen_values.erase(m_eigen_values.begin() + id);
+                m_eigen_vectors.erase(m_eigen_vectors.begin() + id);
+            }
+        }
 
         const auto &getVolumes() const
         {

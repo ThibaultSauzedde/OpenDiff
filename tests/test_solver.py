@@ -7,6 +7,37 @@ import opendiff.solver as solver
 from opendiff import set_log_level, log_level
 
 
+def test_remove_ev(macrolib_1d, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d
+    s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
+    s.solve(nb_eigen_values=10)
+
+    ref_ev = [0.5513156303206834, 0.19788648486212612, 0.0801425345747261, 0.03723735959701421, 0.019399267510645364, 0.011102238300568805,
+              0.006868208610792799, 0.00453559108479465, 0.0031663713907822784, 0.0023192887514495615, 0.0017719996736606217]
+
+    assert len(s.getEigenValues()) == 11
+    assert len(s.getEigenVectors()) == 11
+    npt.assert_almost_equal(s.getEigenValues(), ref_ev, decimal=5)
+
+    s.removeEigenVectors([0])
+    npt.assert_almost_equal(s.getEigenValues(), ref_ev[1:], decimal=5)
+    assert len(s.getEigenVectors()) == 10
+
+    s.solve(nb_eigen_values=10)
+    s.removeEigenVectors([0, 1, 2])
+    npt.assert_almost_equal(s.getEigenValues(), ref_ev[3:], decimal=5)
+    assert len(s.getEigenVectors()) == 8
+
+    s.solve(nb_eigen_values=10)
+    s.removeEigenVectors([0, 3, 5, 8, 9])
+    npt.assert_almost_equal(
+        s.getEigenValues(), np.array(ref_ev)[[1, 2, 4, 6, 7, 10]], decimal=5)
+    assert len(s.getEigenVectors()) == 6
+
+
+
 def test_solverPI_1d(macrolib_1d, datadir):
     set_log_level(log_level.debug)
     macrolib, x_mesh = macrolib_1d

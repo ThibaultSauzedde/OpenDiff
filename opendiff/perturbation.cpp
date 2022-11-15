@@ -28,6 +28,8 @@ namespace perturbation
         auto M = solver.getM();
 
         std::vector<double> all_test{};
+        std::vector<int> ids_remove{};
+
         for (auto i = 0; i < vsize; ++i)
         {
             for (auto j = 0; j < vsize; ++j)
@@ -37,12 +39,22 @@ namespace perturbation
 
                 double test = eigen_vectors_star[j].dot(M * eigen_vectors[i]);
                 all_test.push_back(std::abs(test));
-                if (test > max_eps)
+                if (std::abs(test) > max_eps)
+                {
                     spdlog::debug("Biorthogonality test failed for {}, {}: {:.2e}", i, j, test);
+                    ids_remove.push_back(std::max(i, j)); // remove max of both
+                }
             }
         }
 
+        if (remove)
+        {
+            solver.removeEigenVectors(ids_remove);
+            solver_star.removeEigenVectors(ids_remove); // the same in order to keep the same order
+        }
+
         double max_test = *std::max_element(all_test.begin(), all_test.end());
+
         spdlog::info("Biorthogonality max test : {:.2e}", max_test);
         if (max_test > max_eps && raise_error)
             throw std::invalid_argument("The eigen vector are not bi-orthogonals!");

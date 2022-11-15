@@ -14,7 +14,7 @@ namespace perturbation
     using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
     using Tensor2D = Eigen::Tensor<double, 2, Eigen::RowMajor>;
 
-    // void handleDegeneratedEigenvalues(solver::Solver<SpMat> &solver, solver::Solver<SpMat> &solver_star, double max_eps = 1e-6);
+    void handleDegeneratedEigenvalues(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, double max_eps = 1e-6);
 
     bool checkBiOrthogonality(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat>&solver_star, double max_eps = 1e-6, bool raise_error = false, bool remove = false);
 

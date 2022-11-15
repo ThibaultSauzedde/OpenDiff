@@ -37,6 +37,32 @@ def test_remove_ev(macrolib_1d, datadir):
     assert len(s.getEigenVectors()) == 6
 
 
+def test_isOrthogonal(macrolib_1d, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d
+    s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
+    s.solve(nb_eigen_values=10)
+    assert s.isOrthogonal() == True
+
+    s.solve(nb_eigen_values=20)
+    assert s.isOrthogonal() == False
+
+
+def test_handleDenegeratedEigenvalues(macrolib_1d_refine, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d_refine
+    s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
+    s.solve(nb_eigen_values=60)
+    # print(s.isOrthogonal())
+
+    s.handleDenegeratedEigenvalues()  # todo: find a test which need this function
+    # print(s.isOrthogonal())
+
+    # s.solve(nb_eigen_values=20)
+    # assert s.handleDenegeratedEigenvalues() == False
+
 
 def test_solverPI_1d(macrolib_1d, datadir):
     set_log_level(log_level.debug)

@@ -18,12 +18,101 @@ inline Tensor1D delta_coord(vecd &coord)
 // Solver
 //-------------------------------------------------------------------------
 
-// void handleDenegeratedEigenvalues(double max_eps)
-// {
-//     // get degenerated eigen values
+inline void Solver::handleDenegeratedEigenvalues(double max_eps)
+{
+    // get degenerated eigen values
+    int vsize = static_cast<int>(m_eigen_values.size());
+    std::vector<int> ids_deg{};
+    std::vector<std::vector<int>> ids_group{};
+    ids_group.push_back({});
+    for (auto i = 1; i < vsize; ++i)
+    {
+        if (std::abs(m_eigen_values[i] - m_eigen_values[i - 1]) < max_eps)
+        {
+            // first insertion
+            if (ids_group.back().empty())
+            {
+                ids_group.back().push_back(i - 1);
+                ids_group.back().push_back(i);
+            }
+            // last element of last group == i - 1
+            else if (ids_group.back().back() == (i - 1))
+                ids_group.back().push_back(i);
+            else
+            {
+                ids_group.push_back({});
+                ids_group.back().push_back(i - 1);
+                ids_group.back().push_back(i);
+            }
+        }
+    }
 
-//     // handle each group of degenerated eigen values (if the eigenvectors are not orthogonal)
-// }
+    // handle each group of degenerated eigen values (if the eigenvectors are not orthogonal)
+    for (auto ids : ids_group)
+    {
+        if (ids.empty())
+            continue;
+
+        int ids_size = static_cast<int>(ids.size());
+
+        // calc the coeff
+        std::vector<double> a_ii{};
+        a_ii.push_back(m_eigen_vectors[ids[0]].dot(m_eigen_vectors[ids[0]])); // a00
+
+        spdlog::info("New orthogonalisation with a group of {} eigenvectors from {} to {}", ids_size, ids[0], ids.back());
+        spdlog::debug("We keep the vector {} with eigenvalue: {:.5f}", ids[0], m_eigen_values[ids[0]]);
+
+        // get the new eigenvectors
+        for (auto ev_i = 1; ev_i < ids_size; ++ev_i) // all ev except the first one (we keep it without modif)
+        {
+            spdlog::debug("Orthogonalisation of eigenvector {} with eigenvalue: {:.5f}", ids[ev_i], m_eigen_values[ids[ev_i]]);
+            for (auto k_i = 0; k_i < ev_i; ++k_i) // substract the unwanted part of the vector
+            {
+                auto ain = m_eigen_vectors[ids[k_i]].dot(m_eigen_vectors[ids.back()]);
+                auto coeff = -ain / a_ii[k_i];
+                spdlog::debug("Coeff for k_{} = {:.5f} = - {:.5e} / {:.5e}", k_i, coeff, ain, a_ii[k_i]);
+                if (std::abs(coeff) < 1e-8)
+                    continue;
+                m_eigen_vectors[ids[ev_i]] += coeff * m_eigen_vectors[ids[k_i]];
+            }
+            // append the new norm coeff
+            a_ii.push_back(m_eigen_vectors[ids[ev_i]].dot(m_eigen_vectors[ids[ev_i]]));
+        }
+    }
+}
+
+inline bool Solver::isOrthogonal(double max_eps, bool raise_error)
+{
+    int vsize = static_cast<int>(m_eigen_values.size());
+
+    std::vector<double> all_test{};
+
+    for (auto i = 0; i < vsize; ++i)
+    {
+        for (auto j = 0; j < vsize; ++j)
+        {
+            if (i == j)
+                continue;
+
+            double test = m_eigen_vectors[j].dot(m_eigen_vectors[i]);
+            all_test.push_back(std::abs(test));
+            if (std::abs(test) > max_eps)
+            {
+                spdlog::debug("Orthogonality test failed for {}, {}: {:.2e}", i, j, test);
+            }
+        }
+    }
+
+    double max_test = *std::max_element(all_test.begin(), all_test.end());
+
+    spdlog::info("Biorthogonality max test : {:.2e}", max_test);
+    if (max_test > max_eps && raise_error)
+        throw std::invalid_argument("The eigen vector are not bi-orthogonals!");
+    else if (max_test > max_eps)
+        return false;
+    else
+        return true;
+}
 
 // todo: use getPower(Tensor4Dconst
 // todo: use matrix muktiplication

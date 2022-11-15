@@ -208,6 +208,8 @@ namespace solver
 
         void handleDenegeratedEigenvalues(double max_eps = 1e-6);
 
+        bool isOrthogonal(double max_eps = 1e-6, bool raise_error = false);
+
         // todo: use getPower(Tensor4Dconst
         // todo: use matrix muktiplication
         Tensor3D getPower(int i = 0);

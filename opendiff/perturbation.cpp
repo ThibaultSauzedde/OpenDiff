@@ -17,7 +17,6 @@ namespace perturbation
 
     bool checkBiOrthogonality(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, double max_eps, bool raise_error, bool remove)
     {
-        // todo: remove the ev which are not biorthogonals...
         auto eigen_vectors = solver.getEigenVectors();
         auto eigen_vectors_star = solver_star.getEigenVectors();
 
@@ -64,12 +63,11 @@ namespace perturbation
             return true;
     }
 
-    // void handleDegeneratedEigenvalues(solver::Solver<SpMat> &solver, solver::Solver<SpMat> &solver_star, double max_eps)
-    // {
-    //     solver.handleDenegeratedEigenvalues(max_eps);
-    //     solver_star.handleDenegeratedEigenvalues(max_eps);
-    //     // check that the vectors are biorthogonals?
-    // }
+    void handleDegeneratedEigenvalues(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, double max_eps)
+    {
+        solver.handleDenegeratedEigenvalues(max_eps);
+        solver_star.handleDenegeratedEigenvalues(max_eps);
+    }
 
     std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert, std::string norm_method)
     {

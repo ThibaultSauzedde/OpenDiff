@@ -14,6 +14,8 @@
 #include <Eigen/IterativeLinearSolvers>
 #include <unsupported/Eigen/IterativeSolvers>
 
+#include <highfive/H5Easy.hpp> // serialization
+
 #include <petscmat.h>
 #include <slepceps.h>
 
@@ -234,6 +236,10 @@ namespace solver
 
         template <class T>
         Eigen::VectorXd solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::VectorBlock<Eigen::VectorXd> &x);
+
+        void dump(std::string file_name);
+
+        void load(std::string file_name);
     };
 
     template <class T>

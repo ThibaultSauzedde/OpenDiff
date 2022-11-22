@@ -274,6 +274,21 @@ inline Eigen::VectorXd Solver::solveInner(Eigen::SparseLU<SpMat> &inner_solver, 
     return x ;
 }
 
+inline void Solver::dump(std::string file_name)
+{
+    H5Easy::File file(file_name, H5Easy::File::Overwrite);
+
+    H5Easy::dump(file, "/eigenvectors", m_eigen_vectors);
+    H5Easy::dump(file, "/eigenvalues", m_eigen_values);
+}
+
+inline void Solver::load(std::string file_name)
+{
+    H5Easy::File file(file_name, H5Easy::File::ReadOnly);
+
+    m_eigen_vectors = H5Easy::load<vecvec>(file, "/eigenvectors");
+    m_eigen_values = H5Easy::load<vecd>(file, "/eigenvalues");
+}
 
 //-------------------------------------------------------------------------
 // SolverFull

@@ -126,6 +126,8 @@ PYBIND11_MODULE(opendiff, m)
     // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverSlepc>();
 
     py::class_<solver::Solver>(solver, "Solver")
+        .def("dump", &solver::Solver::dump)
+        .def("load", &solver::Solver::load)
         .def("getVolumes", &solver::Solver::getVolumesPython)
         .def("makeAdjoint", &solver::Solver::makeAdjoint)
         .def("getEigenValues", &solver::Solver::getEigenValues)

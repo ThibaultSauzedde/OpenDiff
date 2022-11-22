@@ -16,6 +16,7 @@ class my_build_ext(build_ext):
         customize_compiler(self.compiler)
         try:
             self.compiler.compiler_so.remove("-Wstrict-prototypes")
+            self.compiler.compiler_so.remove("-O2")
         except (AttributeError, ValueError):
             pass
         build_ext.build_extensions(self)
@@ -37,9 +38,11 @@ ext_modules = [
                        'opendiff/perturbation.cpp'],
                       define_macros=[('VERSION_INFO', __version__)],
                       include_dirs=[
-                            '/home/ts249161/dev/these/eigen'],
+                            '/home/ts249161/dev/these/eigen',
+                            '/home/ts249161/dev/these/HighFive'],
                         #   '/home/ts249161/anaconda3/envs/opendiff/include/eigen3'],
                       libraries=['petsc', 'slepc'],
+                      extra_compile_args=["-O0"],
                       #   library_dirs=[
                       #       "/home/ts249161/anaconda3/envs/opendiff/x86_64-conda-linux-gnu/sysroot/lib/"],
                       #   extra_link_args=[

@@ -6,3 +6,4 @@ opendiff.egg-info/
 tests/.ipynb_checkpoints/materials-checkpoint.ipynb
 opendiff.cpython-38-x86_64-linux-gnu.so
 *.pyc
+# docs/examples/*

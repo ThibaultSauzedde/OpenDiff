@@ -192,6 +192,7 @@ PYBIND11_MODULE(opendiff, m)
     perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality,
                      py::arg("solver"), py::arg("solver_star"), py::arg("ev0") = 1.0,
                      py::arg("max_eps") = 1e-6, py::arg("raise_error") = false);
+    perturbation.def("handleDegeneratedEigenvalues", &perturbation::handleDegeneratedEigenvalues);
     perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation);
     perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython);
 }

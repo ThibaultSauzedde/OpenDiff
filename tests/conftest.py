@@ -75,6 +75,24 @@ def get_1d_geom(nb_cells=20):
     return geometry, x_mesh
 
 
+def get_1d_nmid_geom(nb_cells=20):
+    x = [0, 20*9*2]
+    pblm = ["refl", "fuel2", "fuel1", "fuel1", "fuel1_cr", "fuel1", "fuel1", "fuel1", "fuel1_cr"]
+    pblm += pblm[::-1]
+    print(pblm)
+
+    #we mesh it 
+    pblm_meshed = []
+    for i in pblm: 
+        pblm_meshed.extend([i]*nb_cells)
+    
+    x_mesh = np.linspace(x[0], x[1], len(pblm_meshed)+1)
+
+    pblm_meshed = [[pblm_meshed]]
+
+    print(pblm_meshed, x_mesh)
+    return pblm_meshed, x_mesh
+
 @pytest.fixture
 def macrolib_1d(xs_aiea3d):
     all_mat, mat_names, reac_names = xs_aiea3d
@@ -84,12 +102,24 @@ def macrolib_1d(xs_aiea3d):
 
     return macrolib, x_mesh
 
+@pytest.fixture
+def macrolib_1d_nmid(xs_aiea3d):
+    all_mat, mat_names, reac_names = xs_aiea3d
+    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
+    geometry, x_mesh = get_1d_nmid_geom()
+    macrolib = mat.Macrolib(mat_lib, geometry)
+
+    return macrolib, x_mesh
 
 @pytest.fixture
 def macrolib_1d_pert(xs_aiea3d_pert_mat):
     geometry, x_mesh = get_1d_geom()
     return mat.Macrolib(xs_aiea3d_pert_mat, geometry)
 
+@pytest.fixture
+def macrolib_1d_nmid_pert(xs_aiea3d_pert_mat):
+    geometry, x_mesh = get_1d_nmid_geom()
+    return mat.Macrolib(xs_aiea3d_pert_mat, geometry)
 
 @pytest.fixture
 def macrolib_1d_refine(xs_aiea3d):

@@ -1,5 +1,6 @@
 import sys
 import glob
+import os
 
 from pybind11 import get_cmake_dir
 # Available at setup time due to pyproject.toml
@@ -11,14 +12,35 @@ from distutils.sysconfig import customize_compiler
 __version__ = "0.0.1"
 
 
+DEBUG = bool(int(os.environ.get('DEBUG', 0)))
+
+if DEBUG:
+    optimisation = "-O0"
+else:
+    optimisation = "-O3"
+
 class my_build_ext(build_ext):
     def build_extensions(self):
         customize_compiler(self.compiler)
-        try:
-            self.compiler.compiler_so.remove("-Wstrict-prototypes")
-            self.compiler.compiler_so.remove("-O2")
-        except (AttributeError, ValueError):
-            pass
+        self.compiler.compiler_so.remove("-Wstrict-prototypes")
+        self.compiler.compiler_so.remove("-Wno-unused-result")
+
+        # replace in compiler
+        for step in [self.compiler.compiler_so, self.compiler.linker_so, self.compiler.compiler_cxx]:
+            for i in range(len(step)):
+                # Intel Pentium by default, change to native, try ‘x86-64’
+                if step[i] == "-march=nocona":
+                    step[i] = "-march=native"
+
+                # change to native
+                if step[i] == "-mtune=haswell":
+                    step[i] = "-mtune=native"
+
+                # Optimisation
+                if "-O2" in step[i]:
+                    # O0 O1 O2 O3 Ofast
+                    step[i] = step[i].replace("-O2", optimisation)
+
         build_ext.build_extensions(self)
 
 # Note:
@@ -38,11 +60,12 @@ ext_modules = [
                        'opendiff/perturbation.cpp'],
                       define_macros=[('VERSION_INFO', __version__)],
                       include_dirs=[
-                            '/home/ts249161/dev/these/eigen',
-                            '/home/ts249161/dev/these/HighFive'],
-                        #   '/home/ts249161/anaconda3/envs/opendiff/include/eigen3'],
+                          os.environ.get(
+                              'EIGEN_DIR', '/home/ts249161/dev/these/eigen'),
+                          os.environ.get('HIGHFIVE_DIR', '/home/ts249161/dev/these/HighFive')],
                       libraries=['petsc', 'slepc'],
-                      extra_compile_args=["-O0"],
+                      # ajouter macro pour slepc ou spectra -DNOM_MACRO
+                      #   extra_compile_args=["-O3"],
                       #   library_dirs=[
                       #       "/home/ts249161/anaconda3/envs/opendiff/x86_64-conda-linux-gnu/sysroot/lib/"],
                       #   extra_link_args=[
@@ -56,7 +79,7 @@ setup(
     name="opendiff",
     version=__version__,
     author="Thibault SAUZEDDE",
-    author_email="thibault.sauzedde@proton.me",
+    author_email="thibault.sauzedde@pm.me",
     description="A simple solver for the neutron diffusion equation",
     # packages=['opendiff'],
     long_description="",
@@ -66,5 +89,5 @@ setup(
     python_requires=">=3.6",
 )
 
-
+# for a complete example
 # https://github.com/spotify/pedalboard

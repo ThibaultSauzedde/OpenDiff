@@ -69,7 +69,8 @@ namespace perturbation
         solver_star.handleDenegeratedEigenvalues(max_eps);
     }
 
-    std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert, std::string norm_method)
+    std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star,
+                                                                     solver::SolverFull<SpMat> &solver_pert, std::string norm_method)
     {
         if (norm_method != "power" && norm_method != "PhiStarMPhi")
             throw std::invalid_argument("Invalid method name!");
@@ -263,6 +264,41 @@ namespace perturbation
         auto a_python = py::array_t<double, py::array::c_style>({a.dimension(0), a.dimension(1)},
                                                                 a.data());
         return std::make_tuple(ev_recons, eval_recons, a_python);
+    }
+
+    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd> firstOrderGPT(const solver::SolverFull<SpMat> &solver, const solver::SolverFull<SpMat> &solver_star,
+                         const solver::SolverFull<SpMat> &solver_pert,
+                         Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
+                         Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
+                         double tol, double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+    {
+        auto K = solver.getK();
+        auto M = solver.getM();
+        auto K_pert = solver_pert.getK();
+        auto M_pert = solver_pert.getM();
+
+        auto eigen_vector = solver.getEigenVectors()[0];
+        auto eigen_vector_star = solver_star.getEigenVectors()[0];
+        auto eigen_value = solver.getEigenValues()[0];
+        auto delta_resp = response_pert - response;
+        auto delta_norm = norm_pert - norm;
+        double N_star = response.dot(eigen_vector) / norm.dot(eigen_vector);
+        Eigen::VectorXd source = response - N_star * norm;
+
+        auto solver_fixed_source_star = solver::SolverFullFixedSource(solver, solver_star, source);
+        solver_fixed_source_star.makeAdjoint();
+        auto v0 = Eigen::VectorXd();
+        solver_fixed_source_star.solve(tol, tol, 1, v0, 1.,
+                   tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond);
+
+        Eigen::VectorXd gamma_star = solver_fixed_source_star.getGamma();
+        double pert = delta_resp.dot(eigen_vector);
+        spdlog::debug("Delta response (only direct)  = {}", pert);
+        pert -= gamma_star.dot(((K_pert - K) - (M_pert - M) * eigen_value) * eigen_vector);
+        spdlog::debug("Delta response (direct + indirect)  = {}", pert);
+        pert -= N_star * delta_norm.dot(eigen_vector);
+        spdlog::debug("Delta response (direct + indirect + norm)  = {}", pert);
+        return std::make_tuple(pert, source, gamma_star);
     }
 
 } // namespace perturbation

@@ -154,8 +154,13 @@ s_star = solver.SolverCondPowerIt(s)
 # s_star.solve(inner_solver="BiCGSTAB", inner_max_iter=500, tol_inner=1e-5)
 
 # s_star.makeAdjoint()
-s.solve(inner_solver="BiCGSTAB", inner_max_iter=10, tol_inner=1e-7, outer_max_iter=20)
-# s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT", inner_max_iter=50, tol_inner=1e-3, outer_max_iter=1000)
+# s.solve(inner_solver="SparseLU", outer_max_iter=1000)
+s.solve(inner_solver="SimplicialLDLT", inner_max_iter=1000,
+        tol_inner=1e-7, outer_max_iter=50)
+
+# s.solve(inner_solver="BiCGSTAB", inner_max_iter=10, tol_inner=1e-7, outer_max_iter=20)
+# s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT",
+#         inner_max_iter=50, tol_inner=1e-3, outer_max_iter=1000)
 # s.solve(inner_solver="GMRES", inner_max_iter=500, tol_inner=1e-3, outer_max_iter=1000)
 # s_star.solve(inner_solver="BiCGSTAB", inner_max_iter=10, tol_inner=1e-3)
 

@@ -389,3 +389,88 @@ def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir
     #               show=False, x_label=None, y_label=None, cbar=False, show_stat_data=True, show_edge=False, show_xy=False, sym=True, stat_data_size=12)
     # pp.plot_map2d(delta_recons[:, :, :, 1].sum(axis=0), [x_mesh, y_mesh],
     #               show=True, x_label=None, y_label=None, cbar=False, show_stat_data=True, show_edge=False, show_xy=False, sym=True, stat_data_size=12)
+
+def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d_nmid
+
+    s = solver.SolverFullSlepc(x_mesh, macrolib, 0., 0.)
+    s.solve(inner_max_iter=500, tol=1e-10, tol_inner=1e-4)
+
+    s_star = solver.SolverFullPowerIt(
+        x_mesh, macrolib_1d_nmid_pert, 0., 0.)
+    s_star.makeAdjoint()
+    s_star.solve(inner_solver="SparseLU", inner_max_iter=500, tol=1e-10, tol_inner=1e-4)
+
+    s_pert = solver.SolverFullPowerIt(
+        x_mesh, macrolib_1d_nmid_pert, 0., 0.)  # zero flux albedo
+    s_pert.solve(inner_solver="SparseLU", inner_max_iter=500, tol=1e-10, tol_inner=1e-4)
+
+    power = s.normPower(1)
+    power_pert = s_pert.normPower(1)
+
+    ev = s.getEigenVector(0)
+    ev_pert = s_pert.getEigenVector(0)
+
+    #get power in python
+    sigf = np.concatenate([macrolib.getValues1D(
+        1, "SIGF"),  macrolib.getValues1D(2, "SIGF")])
+    efiss = np.concatenate([macrolib.getValues1D(
+        1, "EFISS"),  macrolib.getValues1D(2, "EFISS")])
+    norm = sigf * efiss
+    power_python = norm.dot(np.ravel(ev))
+
+    sigf_pert = np.concatenate([macrolib_1d_nmid_pert.getValues1D(
+        1, "SIGF"),  macrolib_1d_nmid_pert.getValues1D(2, "SIGF")])
+    efiss_pert = np.concatenate([macrolib_1d_nmid_pert.getValues1D(
+        1, "EFISS"),  macrolib_1d_nmid_pert.getValues1D(2, "EFISS")])
+    norm_pert = sigf_pert * efiss_pert
+    power_python_pert = norm_pert.dot(np.ravel(ev_pert))
+    # norm_pert * np.ravel(ev_pert)
+
+    response = np.zeros_like(norm)
+    response[40] = norm[40]
+    response[int(response.shape[0]/2) + 40] = norm[int(response.shape[0]/2) + 40]
+    response_power = response.dot(np.ravel(ev))
+    response_pert = np.zeros_like(norm_pert)
+    response_pert[40] = norm_pert[40]
+    response_pert[int(response_pert.shape[0]/2) + 40] = norm_pert[int(response_pert.shape[0]/2) + 40]
+    response_power_pert = response_pert.dot(np.ravel(ev_pert))
+
+
+    x_mean = (x_mesh[:-1] + x_mesh[1:])/2.
+
+
+
+    delta_power_gpt, source, gamma_star = pert.firstOrderGPT(s, s_star, s_pert, response, response_pert, norm, norm_pert,
+                                   1e-6, 1e-5, 20000, 500, "SparseLU", "")
+    gamma_star = gamma_star.reshape(ev.shape) 
+    source = source.reshape(ev.shape) 
+    
+    fig, ax = plt.subplots()
+    ax.plot(x_mean, ev[0, 0, 0, :], label="ev0")
+    ax.plot(x_mean, ev[1, 0, 0, :], label="ev1")
+    ax.plot(x_mean, ev_pert[0, 0, 0, :], "--", label="ev_pert0")
+    ax.plot(x_mean, ev_pert[1, 0, 0, :], "--", label="ev_pert1")
+    plt.legend()
+
+    fig, ax = plt.subplots()
+    ax.plot(x_mean, power[0, 0, :], label="power")
+    ax.plot(x_mean, power_pert[0, 0, :], "--", label="power_pert")
+    ax.plot(x_mean[40], response_power, "+", label="power")
+    ax.plot(x_mean[40], response_power_pert, "P", label="power_pert")    
+    ax.plot(x_mean[40], response_power-delta_power_gpt, "P", label="power_pert")    
+    plt.legend()
+    
+    fig, ax = plt.subplots()
+    ax.plot(x_mean, source[0, 0, 0, :], label="source0")
+    ax.plot(x_mean, source[1, 0, 0, :], label="source1")
+    ax.plot(x_mean, gamma_star[0, 0, 0, :], "--", label="gamma_star0")
+    ax.plot(x_mean, gamma_star[1, 0, 0, :], "--", label="gamma_star1")
+    plt.legend()
+    
+    plt.show()
+
+    import ipdb
+    ipdb.set_trace()

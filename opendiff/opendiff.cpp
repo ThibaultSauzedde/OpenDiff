@@ -138,6 +138,7 @@ PYBIND11_MODULE(opendiff, m)
         .def("normPower", &solver::Solver::normPowerPython,
              py::arg("power_W") = 1.)
         .def("normPhiStarMPhi", &solver::Solver::normPhiStarMPhi)
+        .def("normPhi", &solver::Solver::normPhi)
         .def("removeEigenVectors", &solver::Solver::removeEigenVectors)
         .def("handleDenegeratedEigenvalues", &solver::Solver::handleDenegeratedEigenvalues,
              py::arg("max_eps") = 1e-6)
@@ -186,7 +187,16 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
              py::arg("inner_precond") = "");
 
-
+    py::class_<solver::SolverFullFixedSource, solver::SolverFull<SpMat>>(solver, "SolverFullFixedSource")
+        .def(py::init<const solver::SolverFullFixedSource &>())
+        .def(py::init<const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &, const Eigen::VectorXd &>())
+        .def("getGamma", &solver::SolverFullFixedSource::getGammaPython)
+        .def("solve", &solver::SolverFullFixedSource::solve,
+             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-5,
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
+             py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
+             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
+             py::arg("inner_precond") = "");
 
     py::module perturbation = m.def_submodule("perturbation", "A module for the perturbation.");
     perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality,
@@ -195,4 +205,6 @@ PYBIND11_MODULE(opendiff, m)
     perturbation.def("handleDegeneratedEigenvalues", &perturbation::handleDegeneratedEigenvalues);
     perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation);
     perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython);
+    perturbation.def("firstOrderGPT", &perturbation::firstOrderGPT);
+
 }

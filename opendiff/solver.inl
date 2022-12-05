@@ -91,7 +91,7 @@ inline bool Solver::isOrthogonal(double max_eps, bool raise_error)
     {
         for (auto j = 0; j < vsize; ++j)
         {
-            if (i == j)
+            if (j <= i) // i = j or already done
                 continue;
 
             double test = m_eigen_vectors[j].dot(m_eigen_vectors[i]);
@@ -105,7 +105,7 @@ inline bool Solver::isOrthogonal(double max_eps, bool raise_error)
 
     double max_test = *std::max_element(all_test.begin(), all_test.end());
 
-    spdlog::info("Biorthogonality max test : {:.2e}", max_test);
+    spdlog::info("Orthogonality max test : {:.2e}", max_test);
     if (max_test > max_eps && raise_error)
         throw std::invalid_argument("The eigen vector are not bi-orthogonals!");
     else if (max_test > max_eps)
@@ -208,6 +208,18 @@ inline void Solver::normPhiStarMPhi(solver::Solver &solver_star)
     m_norm_method = "PhiStarMPhi";
 }
 
+inline void Solver::normPhi()
+{
+    int nb_ev = static_cast<int>(m_eigen_vectors.size());
+    for (int i{0}; i < nb_ev; ++i)
+    {
+        double factor = m_eigen_vectors[i].dot(m_eigen_vectors[i]);
+        m_eigen_vectors[i] = m_eigen_vectors[i] / factor;
+    }
+    m_is_normed = true;
+    m_norm_method = "Phi";
+}
+
 inline void Solver::norm(std::string method, solver::Solver &solver_star, double power_W)
 {
     if (method == "power")
@@ -230,6 +242,12 @@ void Solver::initInnerSolver(T &inner_solver, double tol_inner, int inner_max_it
 template <>
 inline void Solver::initInnerSolver(Eigen::SparseLU<SpMat> &inner_solver, double tol_inner, int inner_max_iter){};
 
+template <>
+inline void Solver::initInnerSolver(Eigen::SimplicialLLT<SpMat> &inner_solver, double tol_inner, int inner_max_iter){};
+
+template <>
+inline void Solver::initInnerSolver(Eigen::SimplicialLDLT<SpMat> &inner_solver, double tol_inner, int inner_max_iter){};
+
 template <class T>
 Eigen::VectorXd Solver::solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::VectorXd &x)
 {
@@ -241,14 +259,6 @@ Eigen::VectorXd Solver::solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::V
     }
     spdlog::debug("Number of inner iteration: {}", inner_solver.iterations());
     spdlog::debug("Estimated error in inner iteration: {:.2e}", inner_solver.error());
-    return x ;
-}
-
-//specialization
-template <>
-inline Eigen::VectorXd Solver::solveInner(Eigen::SparseLU<SpMat> &inner_solver, Eigen::VectorXd &b, Eigen::VectorXd &x)
-{
-    x = inner_solver.solve(b);
     return x ;
 }
 
@@ -272,6 +282,46 @@ inline Eigen::VectorXd Solver::solveInner(Eigen::SparseLU<SpMat> &inner_solver, 
 {
     x = inner_solver.solve(b);
     return x ;
+}
+
+// specialization
+template <>
+inline Eigen::VectorXd Solver::solveInner(Eigen::SparseLU<SpMat> &inner_solver, Eigen::VectorXd &b, Eigen::VectorXd &x)
+{
+    x = inner_solver.solve(b);
+    return x;
+}
+
+// specialization
+template <>
+inline Eigen::VectorXd Solver::solveInner(Eigen::SimplicialLLT<SpMat> &inner_solver, Eigen::VectorXd &b, Eigen::VectorBlock<Eigen::VectorXd> &x)
+{
+    x = inner_solver.solve(b);
+    return x;
+}
+
+// specialization
+template <>
+inline Eigen::VectorXd Solver::solveInner(Eigen::SimplicialLLT<SpMat> &inner_solver, Eigen::VectorXd &b, Eigen::VectorXd &x)
+{
+    x = inner_solver.solve(b);
+    return x;
+}
+
+// specialization
+template <>
+inline Eigen::VectorXd Solver::solveInner(Eigen::SimplicialLDLT<SpMat> &inner_solver, Eigen::VectorXd &b, Eigen::VectorBlock<Eigen::VectorXd> &x)
+{
+    x = inner_solver.solve(b);
+    return x;
+}
+
+// specialization
+template <>
+inline Eigen::VectorXd Solver::solveInner(Eigen::SimplicialLDLT<SpMat> &inner_solver, Eigen::VectorXd &b, Eigen::VectorXd &x)
+{
+    x = inner_solver.solve(b);
+    return x;
 }
 
 inline void Solver::dump(std::string file_name)
@@ -766,9 +816,15 @@ inline void SolverCondPowerIt::solve(double tol, double tol_eigen_vectors, int n
     if (inner_solver == "SparseLU")
         SolverCondPowerIt::solveIterative<Eigen::SparseLU<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                                    tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "SimplicialLLT")
+        SolverCondPowerIt::solveIterative<Eigen::SimplicialLLT<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                       tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "SimplicialLDLT")
+        SolverCondPowerIt::solveIterative<Eigen::SimplicialLDLT<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                        tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "ConjugateGradient" && inner_precond.empty())
         SolverCondPowerIt::solveIterative<Eigen::ConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                                                   tol_inner, outer_max_iter, inner_max_iter);
+                                                                           tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
         SolverCondPowerIt::solveIterative<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                                    tol_inner, outer_max_iter, inner_max_iter);
@@ -884,4 +940,126 @@ void SolverCondPowerIt::solveIterative(double tol, double tol_eigen_vectors, int
     m_eigen_vectors.push_back(v);
     spdlog::debug("Number of outter iteration: {}", i);
     spdlog::info("Eigen value = {:.5f}", eigen_value);
+}
+
+//-------------------------------------------------------------------------
+// SolverFull
+//-------------------------------------------------------------------------
+
+inline SolverFullFixedSource::SolverFullFixedSource(const SolverFull<SpMat> &solver, const SolverFull<SpMat> &solver_star, const Eigen::VectorXd &source)
+{
+    m_volumes = solver.getVolumes();
+    m_K = solver.getK();
+    m_M = solver.getM();
+    m_macrolib = solver.getMacrolib();
+    m_eigen_values = solver.getEigenValues();
+    m_eigen_vectors = solver.getEigenVectors();
+    m_eigen_vectors_star = solver_star.getEigenVectors();
+    m_source = source;
+}
+
+inline void SolverFullFixedSource::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                                         double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+{
+    spdlog::debug("Inner solver : {}", inner_solver);
+    spdlog::debug("Inner precond : {}", inner_precond);
+    if (inner_solver == "SparseLU")
+        SolverFullFixedSource::solveIterative<Eigen::SparseLU<SpMat>>(tol, v0,
+                                                                      tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
+        SolverFullFixedSource::solveIterative<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, v0,
+                                                                                           tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "BiCGSTAB" && inner_precond.empty())
+        SolverFullFixedSource::solveIterative<Eigen::BiCGSTAB<SpMat>>(tol, v0,
+                                                                      tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "GMRES" && inner_precond.empty())
+        SolverFullFixedSource::solveIterative<Eigen::GMRES<SpMat>>(tol, v0,
+                                                                   tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
+        SolverFullFixedSource::solveIterative<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, v0,
+                                                                                                    tol_inner, outer_max_iter, inner_max_iter);
+    else
+        throw std::invalid_argument("The combinaison of inner_solver and inner_precond is not known");
+}
+
+template <class T>
+void SolverFullFixedSource::solveIterative(double tol, const Eigen::VectorXd &v0,
+                                           double tol_inner, int outer_max_iter, int inner_max_iter)
+{
+
+    int pblm_dim = static_cast<int>(m_M.rows());
+    int v0_size = static_cast<int>(v0.size());
+
+    float r_tol_ev = 1e5;
+    float r_tol_ev2 = 1e5;
+
+    Eigen::VectorXd v(v0);
+    Eigen::VectorXd v_prec(v0);
+
+    if (v0_size == 0)
+    {
+        v.setConstant(pblm_dim, 1.);
+        v_prec.setConstant(pblm_dim, 1.);
+    }
+    else if (v0_size != pblm_dim)
+        throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
+
+    spdlog::debug("Tolerance in outter iteration (gamma): {:.2e}", tol);
+    spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
+    spdlog::debug("Max. outer iteration : {}", outer_max_iter);
+    spdlog::debug("Max. inner iteration : {}", inner_max_iter);
+
+    T solver;
+    initInnerSolver<T>(solver, tol_inner, inner_max_iter);
+    solver.compute(m_M);
+
+    auto K = m_K;
+    if (isAdjoint())
+        K = m_K.adjoint();
+
+    double s_star_K_s = (m_eigen_vectors_star[0].dot(K * m_eigen_vectors[0]));
+    // double s_star_K_s = (m_eigen_vectors[0].dot(m_eigen_vectors[0])); // also works
+
+    // outer iteration
+    int i = 0;
+    while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter)
+    {
+        spdlog::debug("----------------------------------------------------");
+        spdlog::debug("Outer iteration {}", i);
+        Eigen::VectorXd b = m_K * v / m_eigen_values[0] + m_source;
+        // inner iteration
+        v = solveInner<T>(solver, b, v);
+
+        // decontamiation of gamma
+        if (isAdjoint())
+            v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+        else
+            v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
+
+        // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
+
+        // convergence computation
+        r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff());
+        r_tol_ev2 = (v - v_prec).norm();
+
+        v_prec = v;
+        spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
+        spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
+        i++;
+    }
+    spdlog::debug("----------------------------------------------------");
+    m_gamma = v;
+    spdlog::debug("Number of outter iteration: {}", i);
+
+    spdlog::debug("Orthogonlity tests: ");
+    if (isAdjoint())
+    {
+        spdlog::debug("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]));
+        spdlog::debug("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]));
+    }
+    else
+    {
+        spdlog::debug("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]));
+        spdlog::debug("Gamma Phi : {}", v.dot(m_eigen_vectors[0]));
+    }
 }

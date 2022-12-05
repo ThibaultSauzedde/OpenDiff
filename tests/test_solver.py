@@ -408,6 +408,65 @@ def test_SolverFullSlepc_3d(macrolib_3d, datadir):
     M = s.getM()
     assert ev0_star.dot(M.dot(ev0)) == pytest.approx(1, abs=1e-6)
     
+#-------------------------------------------------------------
+#Fixed source problem
+#-------------------------------------------------------------
+
+
+def test_solverFixedSource_1d(macrolib_1d, datadir):
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d
+    ref_eigenvector = np.loadtxt(datadir / "ev_1d.txt")
+
+    ref_eigenvalue = 0.5513156
+    s = solver.SolverFullPowerIt(x_mesh, macrolib, -1., -1.)
+    s_star = solver.SolverFullPowerIt(s)
+    s_star.makeAdjoint()
+    s.solve(inner_solver="SparseLU")
+    s_star.solve(inner_solver="SparseLU")
+    ev = s.getEigenVector(0)
+
+    source = np.zeros_like(ev)
+    # source[0, 0, 0, 2:4] = 0.1
+    # source[0, 0, 0, -4:-2] = 0.1
+    source[0, 0, 0, 10:12] = 0.1
+
+    source_flat = np.ravel(source)
+    s_fixed_source = solver.SolverFullFixedSource(s, s_star, source_flat)
+    s_fixed_source.solve(inner_solver="SparseLU")
+    gamma = s_fixed_source.getGamma()
+
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots()
+    ax.plot(ev[0, 0, 0, :], label="ev0")
+    ax.plot(ev[1, 0, 0, :], label="ev1")
+    ax.plot(source[0, 0, 0, :], label="src0")
+    ax.plot(source[1, 0, 0, :], label="src1")
+    ax.plot(gamma[0, 0, 0, :], "--", label="gamma0")
+    ax.plot(gamma[1, 0, 0, :], "--", label="gamma1")
+    plt.legend()
+
+    source = np.zeros_like(ev)
+    source[1, 0, 0, 10:12] = 0.1
+    source_flat = np.ravel(source)
+    s_fixed_source = solver.SolverFullFixedSource(s, s_star, source_flat)
+    s_fixed_source.makeAdjoint()
+    s_fixed_source.solve(inner_solver="SparseLU")
+    gamma = s_fixed_source.getGamma()
+    ev = s_star.getEigenVector(0)
+
+    fig, ax = plt.subplots()
+    ax.plot(ev[0, 0, 0, :], label="ev0")
+    ax.plot(ev[1, 0, 0, :], label="ev1")
+    ax.plot(source[0, 0, 0, :], label="src0")
+    ax.plot(source[1, 0, 0, :], label="src1")
+    ax.plot(gamma[0, 0, 0, :], "--", label="gamma0")
+    ax.plot(gamma[1, 0, 0, :], "--", label="gamma1")
+    plt.legend()
+    plt.show()
+
+
+
 @pytest.mark.integtest
 def test_solverPI_3d_refine_lu(macrolib_3d_refine):
     solver.init_slepc()

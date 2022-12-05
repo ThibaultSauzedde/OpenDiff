@@ -23,6 +23,14 @@ namespace perturbation
     std::tuple<Eigen::VectorXd, double, Tensor2D> highOrderPerturbation(int order, solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert);
     std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPython(int order, solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert);
 
+    // the response are not ratio
+    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd> firstOrderGPT(const solver::SolverFull<SpMat> &solver, const solver::SolverFull<SpMat> &solver_star,
+                                                                       const solver::SolverFull<SpMat> &solver_pert,
+                                                                       Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
+                                                                       Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
+                                                                       double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
+                                                                       std::string inner_solver, std::string inner_precond);
+
 } // namespace perturbation
 
 // using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;

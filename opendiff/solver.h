@@ -49,6 +49,8 @@ namespace solver
         bool m_is_normed{false};
         std::string m_norm_method{};
 
+        bool m_is_adjoint{false};
+
         vecd m_eigen_values{};
         vecvec m_eigen_vectors{};
 
@@ -187,10 +189,17 @@ namespace solver
             ids.erase(last, ids.end());
             for (auto id : ids)
             {
+                if (static_cast<int>(m_eigen_vectors.size()) <= id)
+                    continue;
                 m_eigen_values.erase(m_eigen_values.begin() + id);
                 m_eigen_vectors.erase(m_eigen_vectors.begin() + id);
             }
         }
+
+        const auto &getMacrolib() const
+        {
+            return m_macrolib;
+        };
 
         const auto &getVolumes() const
         {
@@ -204,6 +213,7 @@ namespace solver
         };
 
         virtual void makeAdjoint() = 0;
+        bool isAdjoint() { return m_is_adjoint; };
 
         virtual void solve(double tol = 1e-6, double tol_eigen_vectors = 1e-4, int nb_eigen_values = 1, const Eigen::VectorXd &v0 = Eigen::VectorXd(), double ev0 = 1,
                            double tol_inner = 1e-6, int outer_max_iter = 500, int inner_max_iter = 200, std::string inner_solver = "BiCGSTAB", std::string inner_precond = "") = 0;
@@ -223,6 +233,8 @@ namespace solver
         const py::array_t<double> normPowerPython(double power_W = 1);
 
         void normPhiStarMPhi(solver::Solver &solver_star);
+
+        void normPhi();
 
         virtual double getPhiStarMPhi(solver::Solver &solver_star, int i) = 0;
 
@@ -281,6 +293,7 @@ namespace solver
         {
             m_M = m_M.adjoint();
             m_K = m_K.adjoint();
+            m_is_adjoint = !m_is_adjoint;
         };
 
         double getPhiStarMPhi(solver::Solver &solver_star, int i)
@@ -315,6 +328,17 @@ namespace solver
                             double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond);
     };
 
+    class SolverFullSpectra : public SolverFull<SpMat>
+    {
+    public:
+        using SolverFull<SpMat>::SolverFull;
+
+        void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
+
+        void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond);
+    };
 
     template <class T>
     class SolverCond : public Solver
@@ -343,7 +367,7 @@ namespace solver
 
         void makeAdjoint()
         {
-            //todo: fill it
+            m_is_adjoint = !m_is_adjoint;
         };
 
         double getPhiStarMPhi(solver::Solver &solver_star, int i)
@@ -367,6 +391,64 @@ namespace solver
                             double tol_inner, int outer_max_iter, int inner_max_iter);
     };
 
+    // class SolverCondSpectra : public SolverCond<SpMat> // use of Spectra
+    // {
+    // public:
+    //     using SolverCond<SpMat>::SolverCond;
+
+    // void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+    //            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
+
+    // template <class T>
+    // void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+    //                     double tol_inner, int outer_max_iter, int inner_max_iter);
+    // };
+
+    class SolverFullFixedSource : public SolverFull<SpMat>
+    {
+    protected:
+        Eigen::VectorXd m_source{};
+        vecvec m_eigen_vectors_star{};
+        Eigen::VectorXd m_gamma{};
+
+    public:
+        SolverFullFixedSource(const SolverFullFixedSource &copy) = default;
+
+        SolverFullFixedSource(const SolverFull<SpMat> &solver, const SolverFull<SpMat> &solver_star, const Eigen::VectorXd &source);
+
+        void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
+
+        template <class T>
+        void solveIterative(double tol, const Eigen::VectorXd &v0,
+                            double tol_inner, int outer_max_iter, int inner_max_iter);
+
+        const auto &getGamma() const
+        {
+            return m_gamma;
+        };
+
+        const auto getGamma4D(int dim_x, int dim_y, int dim_z, int nb_groups) const
+        {
+            Eigen::TensorMap<Tensor4Dconst> a(getGamma().data(), nb_groups, dim_z, dim_y, dim_x);
+            return a;
+        };
+
+        const auto getGamma4D() const
+        {
+            auto nb_groups = m_macrolib.getNbGroups();
+            auto dim = m_macrolib.getDim();
+            auto dim_z = std::get<2>(dim), dim_y = std::get<1>(dim), dim_x = std::get<0>(dim);
+            return getGamma4D(dim_x, dim_y, dim_z, nb_groups);
+        };
+
+        const py::array_t<double> getGammaPython() const
+        {
+            auto gamma = getGamma4D();
+            return py::array_t<double, py::array::c_style>({gamma.dimension(0), gamma.dimension(1), gamma.dimension(2), gamma.dimension(3)},
+                                                           gamma.data());
+        };
+    };
 
 #include "solver.inl"
 

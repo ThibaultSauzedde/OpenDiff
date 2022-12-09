@@ -26,19 +26,19 @@ namespace mat
 
         std::map<pairreac_t, Tensor1D> m_values_1dview{};
 
-        std::vector<std::string> m_reac_names{};
+        std::set<std::string> m_reac_names{};
 
         int m_nb_groups{-1};
 
         std::tuple<int, int, int> m_dim{0, 0, 0}; // tuple avec la taille de x, y et z
 
-        void setup(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry);
+        void setup(const mat::Middles &middles, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry);
 
     public:
         Macrolib() = default;
         Macrolib(const Macrolib &copy) = default;
-        Macrolib(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry); // dim are z, y, x
-        Macrolib(const mat::Materials &materials, const std::vector<std::vector<std::vector<std::string>>> &geometry); // python wrapping
+        Macrolib(const mat::Middles &middles, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry); // dim are z, y, x
+        Macrolib(const mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry); // python wrapping
 
         const Tensor1D &getValues1D(const int i_grp, const std::string &reac_name) const
         {

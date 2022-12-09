@@ -41,25 +41,27 @@ def xs_aiea3d():
     void = [[1e10, 0., 0., 0, 0., 0., 202 * 1.60218e-19 * 1e6, 2.4],
             [1e10, 0., 0., 0, 0., 0., 202 * 1.60218e-19 * 1e6, 2.4]]
 
-    all_mat = [fuel1, fuel1_cr, fuel2, refl, refl_cr, void]
-    mat_names = ["fuel1", "fuel1_cr", "fuel2", "refl", "refl_cr", "void"]
-    reac_names = ["D", "SIGA", "NU_SIGF", "CHI", "1", "2", "EFISS", "NU"]
+    all_mat = {"fuel1": fuel1, "fuel1_cr": fuel1_cr, "fuel2": fuel2, "refl": refl, "refl_cr": refl_cr, "void": void}
+    middles = {mat_name: mat_name for mat_name, _ in all_mat.items()}
+    isot_reac_names = [("ISO", "D"), ("ISO", "SIGA"), ("ISO", "NU_SIGF"), ("ISO", "CHI"),
+                       ("ISO", "1"), ("ISO", "2"), ("ISO", "EFISS"), ("ISO", "NU")]
 
-    return all_mat, mat_names, reac_names
+    return all_mat, middles, isot_reac_names
 
 
 @pytest.fixture
 def xs_aiea3d_pert_mat(xs_aiea3d):
-    all_mat, mat_names, reac_names = xs_aiea3d
-    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
-    mat_lib_pert = mat.Materials(mat_lib)
-    sigr = mat_lib_pert.getValue("fuel1", 2, "NU_SIGF")*1.02
-    mat_lib_pert.setValue("fuel1", 2, "NU_SIGF", sigr)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
+    middles_pert = mat.Middles(middles)
+    sigr = middles_pert.getXsValue("fuel1", 2, "NU_SIGF")*1.02
+    middles_pert.setXsValue("fuel1", 2, "NU_SIGF", "ISO", sigr)
 
-    sigr = mat_lib_pert.getValue("fuel1", 2, "SIGR")*1.01
-    mat_lib_pert.setValue("fuel1", 2, "SIGR", sigr)
+    sigr = middles_pert.getXsValue("fuel1", 2, "SIGR")*1.01
+    middles_pert.setXsValue("fuel1", 2, "SIGR", "ISO", sigr)
 
-    return mat_lib_pert
+    return middles_pert
 
 
 def get_1d_geom(nb_cells=20):
@@ -95,19 +97,21 @@ def get_1d_nmid_geom(nb_cells=20):
 
 @pytest.fixture
 def macrolib_1d(xs_aiea3d):
-    all_mat, mat_names, reac_names = xs_aiea3d
-    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
     geometry, x_mesh = get_1d_geom()
-    macrolib = mat.Macrolib(mat_lib, geometry)
+    macrolib = mat.Macrolib(middles, geometry)
 
     return macrolib, x_mesh
 
 @pytest.fixture
 def macrolib_1d_nmid(xs_aiea3d):
-    all_mat, mat_names, reac_names = xs_aiea3d
-    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
     geometry, x_mesh = get_1d_nmid_geom()
-    macrolib = mat.Macrolib(mat_lib, geometry)
+    macrolib = mat.Macrolib(middles, geometry)
 
     return macrolib, x_mesh
 
@@ -123,10 +127,11 @@ def macrolib_1d_nmid_pert(xs_aiea3d_pert_mat):
 
 @pytest.fixture
 def macrolib_1d_refine(xs_aiea3d):
-    all_mat, mat_names, reac_names = xs_aiea3d
-    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
     geometry, x_mesh = get_1d_geom(50)
-    macrolib = mat.Macrolib(mat_lib, geometry)
+    macrolib = mat.Macrolib(middles, geometry)
 
     return macrolib, x_mesh
 
@@ -178,10 +183,11 @@ def get_2d_geom(nb_div_pmat_x=1, nb_div_pmat_y=1):
 
 @pytest.fixture
 def macrolib_2d(xs_aiea3d):
-    all_mat, mat_names, reac_names = xs_aiea3d
-    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
     geometry, x_mesh, y_mesh = get_2d_geom()
-    macrolib = mat.Macrolib(mat_lib, geometry)
+    macrolib = mat.Macrolib(middles, geometry)
     return macrolib, x_mesh, y_mesh
 
 
@@ -194,10 +200,11 @@ def macrolib_2d_pert(xs_aiea3d_pert_mat):
 
 @pytest.fixture
 def macrolib_2d_refine(xs_aiea3d):
-    all_mat, mat_names, reac_names = xs_aiea3d
-    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
     geometry, x_mesh, y_mesh = get_2d_geom(20, 20)
-    macrolib = mat.Macrolib(mat_lib, geometry)
+    macrolib = mat.Macrolib(middles, geometry)
     return macrolib, x_mesh, y_mesh
 
 
@@ -315,10 +322,11 @@ def get_3d_geom(nb_div_pmat_x=1, nb_div_pmat_y=1, z_mesh=None):
 
 @pytest.fixture
 def macrolib_3d(xs_aiea3d):
-    all_mat, mat_names, reac_names = xs_aiea3d
-    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
     pblm, x_mesh, y_mesh, z_mesh = get_3d_geom()
-    macrolib = mat.Macrolib(mat_lib, pblm)
+    macrolib = mat.Macrolib(middles, pblm)
     # print(pblm)
     return macrolib, x_mesh, y_mesh, z_mesh
 
@@ -332,8 +340,9 @@ def macrolib_3d_pert(xs_aiea3d_pert_mat):
 
 @pytest.fixture
 def macrolib_3d_refine(xs_aiea3d):
-    all_mat, mat_names, reac_names = xs_aiea3d
-    mat_lib = mat.Materials(all_mat, mat_names, reac_names)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
     nb_div_pmat_x = 5
     nb_div_pmat_y = 5
     z_mesh = [[0., 5, 10, 13, 16, 18, 19, 20.],
@@ -345,7 +354,7 @@ def macrolib_3d_refine(xs_aiea3d):
               [361, 362, 364, 367, 370, 375, 380.]]
     pblm, x_mesh, y_mesh, z_mesh = get_3d_geom(
         nb_div_pmat_x, nb_div_pmat_y, z_mesh)
-    macrolib = mat.Macrolib(mat_lib, pblm)
+    macrolib = mat.Macrolib(middles, pblm)
     # print(pblm)
     return macrolib, x_mesh, y_mesh, z_mesh
 

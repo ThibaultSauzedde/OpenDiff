@@ -15,12 +15,12 @@ namespace mat
 {
     using Tensor3D = Eigen::Tensor<double, 3, Eigen::RowMajor>;
 
-    Macrolib::Macrolib(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry)
+    Macrolib::Macrolib(const mat::Middles &middles, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry)
     {
-        setup(materials, geometry);
+        setup(middles, geometry);
     }
 
-    Macrolib::Macrolib(const mat::Materials &materials, const std::vector<std::vector<std::vector<std::string>>> &geometry)
+    Macrolib::Macrolib(const mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry)
     {
         //copy of the geometry in a tensor, it does not cost that much :)
 
@@ -53,18 +53,18 @@ namespace mat
             }
             i++;
         }
-        setup(materials, geometry_tensor);
+        setup(middles, geometry_tensor);
     }
 
-    void Macrolib::setup(const mat::Materials &materials, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry)
+    void Macrolib::setup(const mat::Middles &middles, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry)
     {
-        m_nb_groups = materials.getNbGroups();
-        m_reac_names = materials.getReacNames();
+        m_nb_groups = middles.getNbGroups();
+        m_reac_names = middles.getReacNames();
         auto dim_z = geometry.dimension(0), dim_y = geometry.dimension(1), dim_x = geometry.dimension(2);
         m_dim = {dim_x, dim_y, dim_z};
         Eigen::array<Eigen::DenseIndex, 1> one_dim({dim_z * dim_y * dim_x});
 
-        // loop on reactionsmaterials.getReacNames()
+        // loop on reactions 
         for (int i_grp = 0; i_grp < m_nb_groups; i_grp++)
         {
             for (auto reac_name : m_reac_names)
@@ -77,7 +77,7 @@ namespace mat
                     {
                         for (int k = 0; k < dim_x; ++k)
                         {
-                            reac_i(i, j, k) = materials.getValue(geometry(i, j, k), i_grp + 1, reac_name);
+                            reac_i(i, j, k) = middles.getXsValue(geometry(i, j, k), i_grp + 1, reac_name);
                         }
                     }
                 }
@@ -90,7 +90,7 @@ namespace mat
     void Macrolib::addReaction(const int i_grp, const std::string &reac_name, double values)
     {
         if( find(m_reac_names.begin(), m_reac_names.end(), reac_name) == m_reac_names.end() )
-            m_reac_names.push_back(reac_name);
+            m_reac_names.insert(reac_name);
 
         auto dim_z = std::get<2>(m_dim), dim_y = std::get<1>(m_dim), dim_x = std::get<0>(m_dim);
         Eigen::array<Eigen::DenseIndex, 1> one_dim({dim_z * dim_y * dim_x});
@@ -103,7 +103,7 @@ namespace mat
     void Macrolib::addReaction(const int i_grp, const std::string &reac_name, Tensor3D values)
     {
         if( find(m_reac_names.begin(), m_reac_names.end(), reac_name) == m_reac_names.end() )
-            m_reac_names.push_back(reac_name);
+            m_reac_names.insert(reac_name);
 
         auto dim_z = std::get<2>(m_dim), dim_y = std::get<1>(m_dim), dim_x = std::get<0>(m_dim);
 

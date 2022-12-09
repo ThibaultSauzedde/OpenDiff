@@ -4,67 +4,85 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <tuple>
+#include <set>
 
 #include <Eigen/Dense>
 
 namespace mat
 {
-    class Materials
+    class Material
     {
     private:
+        using tuple_str = std::tuple<std::string, std::string>;
+
         // vector of eigen matrix
-        std::map<std::string, Eigen::ArrayXXd> m_values{};
+        Eigen::ArrayXXd m_values{};
 
         // we add the transfert section in it (always at the end), "SIGR" and "SIGF"
-        std::vector<std::string> m_reac_names{"D", "SIGA", "NU_SIGF", "CHI", "EFISS", "NU"};
+        std::set<std::string> m_reac_names{"D", "SIGA", "NU_SIGF", "CHI", "EFISS", "NU"};
+        std::set<std::string> m_isot_names{}; // the list of unique isot names
 
-        std::map<std::string, int> m_reac2id{};
+        std::vector<tuple_str> m_isot_reac_names{};
 
         int m_nb_groups{-1};
 
-        std::vector<int> checkReacNamesOrder(const std::vector<std::string> &reac_names);
+        void createIndex(const std::vector<std::string> &isot_names, const std::vector<std::string> &reac_names);
+        void checkIsotReacNamesOrder(const std::vector<std::string> &isot_names, const std::vector<std::string> &reac_names);
         void setReactionsNames();
-        void getNbGroups(const std::vector<Eigen::ArrayXXd> &values);
-        Eigen::ArrayXXd addAdditionalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids);
-        void majAdditionalXS(Eigen::ArrayXXd &new_mat);
+        void addAdditionalXS();
+        void majAdditionalXS();
 
     public:
-        Materials() = default;
-        Materials(const Materials &copy) = default;
-        Materials(const std::vector<Eigen::ArrayXXd> &values, const std::vector<std::string> &names,
-                  const std::vector<std::string> &reac_names);
+        Material() = default;
+        Material(const Material &copy) = default;
+        Material(const Eigen::ArrayXXd &values, const std::vector<std::string> &isot_names, const std::vector<std::string> &reac_names);
 
-        const Eigen::ArrayXXd &getMaterial(const std::string &name) const
-        {
-            if (m_values.find(name) == m_values.end())
-                throw std::invalid_argument("The wanted material name (" + name + ") is not in the materials");
-            else
-                return m_values.at(name);
-        };
-        const auto getMaterials() const { return m_values; };
+        Material(const Eigen::ArrayXXd &values, const std::vector<tuple_str> &isot_reac_names);
 
-        const double getValue(const std::string &mat_name, const int i_grp, const std::string &reac_name) const;
-        void setValue(const std::string &mat_name, const int i_grp, const std::string &reac_name, double value);
+        const auto &getValues() const { return m_values; };
+
+        const auto &getIndex() const { return m_isot_reac_names; };
+        const int getIndex(const std::string &isot_name, const std::string &reac_name) const;
+
+        const double getXsValue(const int i_grp, const std::string &isot_name, const std::string &reac_name) const;
+        void setXsValue(const int i_grp, const std::string &isot_name, const std::string &reac_name, double value);
 
         const auto getReacNames() const { return m_reac_names; };
-        const auto getMatNames() const
-        {
-            std::vector<std::string> keys;
-            for (const auto &[k, v] : m_values)
-            {
-                keys.push_back(k);
-            }
-            return keys;
-        };
+        const auto getIsotNames() const { return m_isot_names; };
         const int getNbGroups() const { return m_nb_groups; };
-        const int getReactionIndex(const std::string &reac_name) const
-        {
-            if (m_reac2id.find(reac_name) == m_reac2id.end())
-                throw std::invalid_argument("The wanted reac name " + reac_name + "is not in the materials");
-            else
-                return m_reac2id.at(reac_name);
-        };
-        void addMaterial(const Eigen::ArrayXXd &mat, const std::string &name, const std::vector<std::string> &reac_names);
+    };
+
+    class Middles
+    {
+    private:
+        std::map<std::string, Material> m_materials;
+        std::map<std::string, std::string> m_middles;
+        std::map<std::string, std::map<std::string, double>> m_conc{};
+        int m_nb_groups{-1};
+        std::set<std::string> m_reac_names{};
+
+        void checkMiddles();
+
+    public:
+        Middles() = default;
+        Middles(const Middles &copy) = default;
+        Middles(std::map<std::string, Material> &materials, const std::map<std::string, std::string> &middles);
+        Middles(std::map<std::string, Material> &materials, const std::map<std::string, std::string> &middles,
+                const std::map<std::string, std::map<std::string, double>> &concentrations);
+
+        void createIndependantMaterials();
+
+        auto getMiddles() { return m_middles; };
+        auto getMaterials() { return m_materials; };
+        auto getConcentrations() { return m_conc; };
+
+        double getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name) const;
+        void setXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name, double value);
+        double getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name) const;
+
+        const int getNbGroups() const { return m_nb_groups; };
+        const auto getReacNames() const { return m_reac_names; };
     };
 
 } // namespace mat

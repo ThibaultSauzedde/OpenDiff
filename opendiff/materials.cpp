@@ -8,182 +8,276 @@
 
 namespace mat
 {
-    Materials::Materials(const std::vector<Eigen::ArrayXXd> &values, const std::vector<std::string> &names,
-                         const std::vector<std::string> &reac_names)
+    Material::Material(const Eigen::ArrayXXd &values, const std::vector<tuple_str> &isot_reac_names)
     {
-        if (names.size() != values.size())
-            throw std::invalid_argument("The number of values is != from the number of names!");
-
-        // get the number of groups
-        getNbGroups(values);
+        m_values = values;
+        m_nb_groups = m_values.rows();
 
         // set the reactions properly
         setReactionsNames();
 
-        // check that the reac names are in the same order than m_reac_names
-        auto ids = checkReacNamesOrder(reac_names);
-
-        // for each mat: create an empty eigen array with the size of m_reac_names times the number of energy groups
-        int i = 0;
-        for (Eigen::ArrayXXd mat : values)
+        // create the index
+        m_isot_reac_names = isot_reac_names;
+        std::vector<std::string> reac_names{};
+        std::vector<std::string> isot_names{};
+        for (int i{0}; i < static_cast<int>(isot_reac_names.size()); ++i)
         {
-            auto new_mat = addAdditionalXS(mat, ids);
-
-            // fill the matrix
-            m_values[names[i]] = new_mat;
-            i++;
+            isot_names.push_back(std::get<0>(isot_reac_names[i]));
+            reac_names.push_back(std::get<1>(isot_reac_names[i]));
         }
+
+        // check the reac and isot names
+        checkIsotReacNamesOrder(isot_names, reac_names);
+
+        // create an empty eigen array with the size of reac_names (or isot_names) times the number of energy groups
+        addAdditionalXS();
     }
 
-    std::vector<int> Materials::checkReacNamesOrder(const std::vector<std::string> &reac_names)
+    Material::Material(const Eigen::ArrayXXd &values, const std::vector<std::string> &isot_names, const std::vector<std::string> &reac_names)
     {
-        std::vector<int> ids(reac_names.size(), -1);
+        m_values = values;
+        m_nb_groups = m_values.rows();
 
-        if ((reac_names.size() + 2) != m_reac_names.size())
-            throw std::invalid_argument("There is a wrong number of reaction!");
+        // set the reactions properly
+        setReactionsNames();
 
-        int i = 0;
-        for (std::string reac_name : m_reac_names)
-        {
-            if (reac_name == "SIGR" || reac_name == "SIGF")
-            {
-                i++;
-                continue;
-            }
-            // get the id in the ref reac names
-            int ref_i = std::distance(reac_names.begin(), std::find(reac_names.begin(),
-                                                                    reac_names.end(), reac_name));
+        // create the index
+        createIndex(isot_names, reac_names);
 
-            if (static_cast<std::vector<int>::size_type>(ref_i) == reac_names.size())
-            {
-                std::cerr << reac_name << "\n";
-                throw std::invalid_argument("There is a missing reaction!");
-            }
-            else
-                ids[ref_i] = i;
+        // check the reac and isot names
+        checkIsotReacNamesOrder(isot_names, reac_names);
 
-            i++;
-        }
-
-        return ids;
+        // create an empty eigen array with the size of reac_names (or isot_names) times the number of energy groups
+        addAdditionalXS();
     }
 
-    void Materials::getNbGroups(const std::vector<Eigen::ArrayXXd> &values)
-    {
-        int i = 0;
-        for (Eigen::ArrayXXd mat : values)
-        {
-            // check array shape
-            if (i == 0)
-                m_nb_groups = mat.rows();
-            else if (m_nb_groups != mat.rows())
-                throw std::invalid_argument("The number of groups is not the same for all the materials!");
-
-            i++;
-        }
-    }
-
-    void Materials::setReactionsNames()
+    void Material::setReactionsNames()
     {
         // set the reactions names
         for (int i{0}; i < m_nb_groups; ++i)
         {
-            m_reac_names.push_back(std::to_string(i + 1));
+            m_reac_names.insert(std::to_string(i + 1));
         }
 
-        m_reac_names.push_back("SIGR");
-        m_reac_names.push_back("SIGF");
+        m_reac_names.insert("SIGR");
+        m_reac_names.insert("SIGF");
+    }
 
-        int i = 0;
-        for (auto reac_name : m_reac_names)
+    void Material::createIndex(const std::vector<std::string> &isot_names, const std::vector<std::string> &reac_names)
+    {
+        if (reac_names.size() != isot_names.size())
+            throw std::invalid_argument("There is a different number of reactions and isotopes!");
+
+        for (int i{0}; i < static_cast<int>(reac_names.size()); ++i)
+            m_isot_reac_names.push_back(std::make_tuple(isot_names[i], reac_names[i]));
+    }
+
+    void Material::checkIsotReacNamesOrder(const std::vector<std::string> &isot_names, const std::vector<std::string> &reac_names)
+    {
+        if (reac_names.size() != isot_names.size())
+            throw std::invalid_argument("There is a different number of reactions and isotopes!");
+
+        // get unique reac and isot names
+        m_isot_names = std::set<std::string>(isot_names.begin(), isot_names.end());
+
+        // loop on the isot
+        bool isin{false};
+        for (std::string isot_name : m_isot_names)
         {
-            m_reac2id[reac_name] = i;
-            i++;
-        }
-    }
-
-    // todo: check the bounds
-    const double Materials::getValue(const std::string &mat_name, const int i_grp, const std::string &reac_name) const
-    {
-        if (i_grp < 1 || i_grp > m_nb_groups)
-            throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
-
-        if (m_values.find(mat_name) == m_values.end())
-            throw std::invalid_argument("The wanted material name (" + mat_name + ") is not in the materials");
-        else
-            return m_values.at(mat_name)(i_grp - 1, getReactionIndex(reac_name));
-    }
-
-    void Materials::setValue(const std::string &mat_name, const int i_grp, const std::string &reac_name, double value)
-    {
-        if (i_grp < 1 || i_grp > m_nb_groups)
-            throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the materials");
-
-        if (m_values.find(mat_name) == m_values.end())
-            throw std::invalid_argument("The wanted material name (" + mat_name + ") is not in the materials");
-        else
-        {
-            m_values.at(mat_name)(i_grp - 1, getReactionIndex(reac_name)) = value;
-            if ((reac_name != "SIGR") && (reac_name != "SIGF"))
-                majAdditionalXS(m_values.at(mat_name));
-        }
-    }
-
-    Eigen::ArrayXXd Materials::addAdditionalXS(const Eigen::ArrayXXd &mat, const std::vector<int> &ids)
-    {
-        // check array shape
-        if (static_cast<std::vector<int>::size_type>(mat.cols()) != ids.size())
-            throw std::invalid_argument("The number of reaction is different in the array and the name's list!");
-
-        // reorder the array
-        Eigen::ArrayXXd new_mat = mat(Eigen::placeholders::all, ids);
-
-        // add the removal + sigf xs section
-        new_mat.conservativeResize(mat.rows(), mat.cols() + 2);
-        majAdditionalXS(new_mat);
-        return new_mat;
-    }
-
-    void Materials::majAdditionalXS(Eigen::ArrayXXd &new_mat)
-    {
-        int id_siga = m_reac2id["SIGA"];
-        int id_nusigf = m_reac2id["NU_SIGF"];
-        int id_nu = m_reac2id["NU"];
-        int id_sigr = m_reac2id["SIGR"];
-        int id_sigf = m_reac2id["SIGF"]; // last id
-
-        // sigr = siga
-        new_mat(Eigen::placeholders::all, id_sigr) = new_mat(Eigen::placeholders::all, id_siga);
-
-        // add transfert section to other groups
-        for (int grp_orig{0}; grp_orig < m_nb_groups; ++grp_orig)
-        {
-            for (int grp_dest{0}; grp_dest < m_nb_groups; ++grp_dest)
+            // loop on the mandatories reac names
+            for (std::string reac_name : m_reac_names)
             {
-                if (grp_orig == grp_dest)
-                    continue;
+                // loop on the given reac and isot names
+                isin = false;
+                for (int i{0}; i < static_cast<int>(reac_names.size()); ++i)
+                {
+                    if (isot_name != isot_names[i])
+                        continue;
 
-                int id_grp_dest = m_reac2id[std::to_string(grp_dest + 1)];
-                new_mat(grp_orig, id_sigr) += new_mat(grp_orig, id_grp_dest);
+                    if (reac_name == reac_names[i])
+                        isin = true;
+                }
+                if (isin == false && !((reac_name == "SIGR") || (reac_name == "SIGF")))
+                    throw std::invalid_argument("The reaction " + reac_name + " is missing for the isotope " + isot_name + "!");
+                else if (isin == true && ((reac_name == "SIGR") || (reac_name == "SIGF")))
+                    throw std::invalid_argument("The reaction " + reac_name + " is calculated in this class and should not be given for the isotope " + isot_name + "!");
             }
         }
-
-        new_mat(Eigen::placeholders::all, id_sigf) = new_mat(Eigen::placeholders::all, id_nusigf) / new_mat(Eigen::placeholders::all, id_nu);
     }
 
-    void Materials::addMaterial(const Eigen::ArrayXXd &mat, const std::string &name, const std::vector<std::string> &reac_names)
+    void Material::addAdditionalXS()
     {
-        // check that the reac names are in the same order than m_reac_names
-        auto ids = checkReacNamesOrder(reac_names);
+        // add the removal + sigf xs section
+        m_values.conservativeResize(m_values.rows(), m_values.cols() + 2 * static_cast<int>(m_isot_names.size()));
+        for (std::string isot_name : m_isot_names)
+        {
+            m_isot_reac_names.push_back(std::make_tuple(isot_name, "SIGR"));
+            m_isot_reac_names.push_back(std::make_tuple(isot_name, "SIGF"));
+        }
+        majAdditionalXS();
+    }
 
-        // check the number of groups
-        if (m_nb_groups != mat.rows())
-            throw std::invalid_argument("The number of groups is not the same for all the materials!");
+    void Material::majAdditionalXS()
+    {
+        for (std::string isot_name : m_isot_names)
+        {
+            int id_siga = getIndex(isot_name, "SIGA");
+            int id_nusigf = getIndex(isot_name, "NU_SIGF");
+            int id_nu = getIndex(isot_name, "NU");
+            int id_sigr = getIndex(isot_name, "SIGR");
+            int id_sigf = getIndex(isot_name, "SIGF");
 
-        auto new_mat = addAdditionalXS(mat, ids);
+            // sigr = siga
+            m_values(Eigen::placeholders::all, id_sigr) = m_values(Eigen::placeholders::all, id_siga);
 
-        // fill the matrix
-        m_values[name] = new_mat;
+            // add transfert section to other groups
+            for (int grp_orig{0}; grp_orig < m_nb_groups; ++grp_orig)
+            {
+                for (int grp_dest{0}; grp_dest < m_nb_groups; ++grp_dest)
+                {
+                    if (grp_orig == grp_dest)
+                        continue;
+
+                    int id_grp_dest = getIndex(isot_name, std::to_string(grp_dest + 1));
+                    m_values(grp_orig, id_sigr) += m_values(grp_orig, id_grp_dest);
+                }
+            }
+            m_values(Eigen::placeholders::all, id_sigf) = m_values(Eigen::placeholders::all, id_nusigf) / m_values(Eigen::placeholders::all, id_nu);
+        }
+    }
+
+    const int Material::getIndex(const std::string &isot_name, const std::string &reac_name) const
+    {
+        auto index_val = std::make_tuple(isot_name, reac_name);
+        // get the id in the ref reac names
+        int index = std::distance(m_isot_reac_names.begin(),
+                                  std::find(m_isot_reac_names.begin(), m_isot_reac_names.end(), index_val));
+
+        if (index == static_cast<int>(m_isot_reac_names.size()))
+            throw std::invalid_argument("The wanted (isot name, reac name) = (" + isot_name + ", " + isot_name + ") is not in the material");
+
+        return index;
+    };
+
+    const double Material::getXsValue(const int i_grp, const std::string &isot_name, const std::string &reac_name) const
+    {
+        if (i_grp < 1 || i_grp > m_nb_groups)
+            throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the material");
+
+        return m_values(i_grp - 1, getIndex(isot_name, reac_name));
+    }
+
+    void Material::setXsValue(const int i_grp, const std::string &isot_name, const std::string &reac_name, double value)
+    {
+        if (i_grp < 1 || i_grp > m_nb_groups)
+            throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the material");
+
+        m_values(i_grp - 1, getIndex(isot_name, reac_name)) = value;
+        if ((reac_name != "SIGR") && (reac_name != "SIGF"))
+            majAdditionalXS();
+    }
+
+    //
+    // Middles
+    //
+
+    Middles::Middles(std::map<std::string, Material> &materials, const std::map<std::string, std::string> &middles)
+    {
+        m_materials = materials;
+        m_middles = middles;
+
+        // set the concentration to 1
+        for (const auto &[middle_name, mat_name] : m_middles)
+            for (auto isot_name : m_materials[mat_name].getIsotNames())
+                m_conc[middle_name][isot_name] = 1.;
+
+        checkMiddles();
+    }
+
+    Middles::Middles(std::map<std::string, Material> &materials, const std::map<std::string, std::string> &middles,
+                     const std::map<std::string, std::map<std::string, double>> &concentrations)
+    {
+        m_materials = materials;
+        m_middles = middles;
+        m_conc = concentrations;
+        checkMiddles();
+    }
+
+    void Middles::checkMiddles()
+    {
+        m_reac_names = m_materials.begin()->second.getReacNames();
+        m_nb_groups = m_materials.begin()->second.getNbGroups();
+        for (const auto &[mat_name, mat] : m_materials)
+        {
+            if (mat.getNbGroups() != m_nb_groups)
+                throw std::invalid_argument("The number if nrj group has to be the same in all the materials ! ");
+        }
+
+        for (const auto &[middle_name, mat_name] : m_middles)
+        {
+            if (m_materials.find(mat_name) == m_materials.end())
+                throw std::invalid_argument("The wanted material (" + mat_name + ") is not in the materials!");
+
+            if (m_conc.find(middle_name) == m_conc.end())
+                throw std::invalid_argument("The wanted middle (" + middle_name + ") has no concentrations!");
+
+            //check the isot
+            auto isot_names = m_materials[mat_name].getIsotNames();
+            for (auto isot_name : isot_names)
+            {
+                if (!m_conc[middle_name].count(isot_name))
+                    throw std::invalid_argument("The wanted isot (" + isot_name + ") in middle " + middle_name + "has no concentrations!");
+            }
+        }
+    }
+
+    void Middles::createIndependantMaterials()
+    {
+        std::set<std::string> unique_mat_name{};
+        for (const auto &[middle_name, mat_name] : m_middles)
+        {
+            // not found
+            if (std::find(unique_mat_name.begin(), unique_mat_name.end(), mat_name) == unique_mat_name.end())
+                unique_mat_name.insert(mat_name);
+            else // already found
+            {
+                // add a mat with unique name
+                int i = 0;
+                std::string new_mat_name{mat_name + "_" + std::to_string(i)};
+                while (m_materials.count(new_mat_name))
+                {
+                    i++;
+                    new_mat_name = mat_name + "_" + std::to_string(i);
+                }
+
+                m_materials[new_mat_name] = Material(m_materials[mat_name]);
+                m_middles[middle_name] = new_mat_name;
+            }
+        }
+    }
+
+    double Middles::getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name) const
+    {
+        auto mat = m_materials.at(m_middles.at(middle_name)) ; 
+        return mat.getXsValue(i_grp, isot_name, reac_name) * m_conc.at(middle_name).at(isot_name);
+    }
+
+    void Middles::setXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name, double value)
+    {
+        auto mat = m_materials.at(m_middles.at(middle_name)) ; 
+        mat.setXsValue(i_grp, isot_name, reac_name, value);
+    }
+
+    double Middles::getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name) const
+    {
+        auto mat = m_materials.at(m_middles.at(middle_name)) ;
+        auto isot_names = mat.getIsotNames();
+        double xs_value{0.};
+        // no chekc --> all the isot must have all the wanted reac !
+        for (auto isot_name : isot_names)
+            xs_value += getXsValue(middle_name, i_grp, reac_name, isot_name);
+
+        return xs_value;
     }
 
 } // namespace mat

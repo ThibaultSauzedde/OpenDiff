@@ -24,11 +24,10 @@
 
 namespace py = pybind11;
 using vecd = std::vector<double>;
-using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>; // declares a column-major sparse matrix type of double
+using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;      // declares a column-major sparse matrix type of double
 using SpMatSimple = Eigen::SparseMatrix<float, Eigen::RowMajor>; // declares a column-major sparse matrix type of float
-
-//todo: use enum instead of string in some cases 
-
+using tuple_str = std::tuple<std::string, std::string>;
+//todo: use enum instead of string in some cases
 
 // return 3 dimensional ndarray
 template <class T>
@@ -84,23 +83,37 @@ PYBIND11_MODULE(opendiff, m)
 
     py::module materials = m.def_submodule("materials", "A module for materials and macrolib handling.");
 
-    py::class_<mat::Materials>(materials, "Materials")
-        .def(py::init<const mat::Materials &>())
-        .def(py::init<const std::vector<Eigen::ArrayXXd> &, const std::vector<std::string> &,
-                      const std::vector<std::string> &>())
-        .def("getReacNames", &mat::Materials::getReacNames)
-        .def("getMatNames", &mat::Materials::getMatNames)
-        .def("getMaterial", &mat::Materials::getMaterial)
-        .def("getMaterials", &mat::Materials::getMaterials)
-        .def("getValue", &mat::Materials::getValue)
-        .def("setValue", &mat::Materials::setValue)
-        .def("getNbGroups", py::overload_cast<>(&mat::Materials::getNbGroups, py::const_))
-        .def("getReactionIndex", &mat::Materials::getReactionIndex)
-        .def("addMaterial", &mat::Materials::addMaterial);
+    py::class_<mat::Material>(materials, "Material")
+        .def(py::init<const mat::Material &>())
+        .def(py::init<const Eigen::ArrayXXd &, const std::vector<std::string> &, const std::vector<std::string> &>())
+        .def(py::init<const Eigen::ArrayXXd &, const std::vector<tuple_str> &>())
+        .def("getReacNames", &mat::Material::getReacNames)
+        .def("getIsotNames", &mat::Material::getIsotNames)
+        .def("getNbGroups", &mat::Material::getNbGroups)
+        .def("getValues", &mat::Material::getValues)
+        .def("getXsValue", &mat::Material::getXsValue)
+        .def("setXsValue", &mat::Material::setXsValue)
+        .def("getIndex", py::overload_cast<>(&mat::Material::getIndex, py::const_))
+        .def("getIndex", py::overload_cast<const std::string &, const std::string &>(&mat::Material::getIndex, py::const_));
+
+    py::class_<mat::Middles>(materials, "Middles")
+        .def(py::init<const mat::Middles &>())
+        .def(py::init<std::map<std::string, mat::Material> &, const std::map<std::string, std::string> &>())
+        .def(py::init<std::map<std::string, mat::Material> &, const std::map<std::string, std::string> &,
+                      const std::map<std::string, std::map<std::string, double>> &>())
+        .def("createIndependantMaterials", &mat::Middles::createIndependantMaterials)
+        .def("getMiddles", &mat::Middles::getMiddles)
+        .def("getMaterials", &mat::Middles::getMaterials)
+        .def("getConcentrations", &mat::Middles::getConcentrations)
+        .def("getReacNames", &mat::Middles::getReacNames)
+        .def("getNbGroups", &mat::Middles::getNbGroups)
+        .def("setXsValue", &mat::Middles::setXsValue)
+        .def("getXsValue", py::overload_cast<const std::string, const int, const std::string &, const std::string &>(&mat::Middles::getXsValue, py::const_))
+        .def("getXsValue", py::overload_cast<const std::string, const int, const std::string &>(&mat::Middles::getXsValue, py::const_));
 
     py::class_<mat::Macrolib>(materials, "Macrolib")
         // .def(py::init<const mat::Macrolib &>())
-        .def(py::init<const mat::Materials &, const std::vector<std::vector<std::vector<std::string>>> &>())
+        .def(py::init<const mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &>())
         .def("getReacNames", &mat::Macrolib::getReacNames)
         .def("getNbGroups", &mat::Macrolib::getNbGroups)
         .def("getDim", &mat::Macrolib::getDim)
@@ -206,5 +219,4 @@ PYBIND11_MODULE(opendiff, m)
     perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation);
     perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython);
     perturbation.def("firstOrderGPT", &perturbation::firstOrderGPT);
-
 }

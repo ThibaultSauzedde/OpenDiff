@@ -3,45 +3,90 @@
 
 #include <tuple>
 #include <string>
+#include <vector>
+#include <map>
+#include <random>
+#include <chrono>
 #include "spdlog/fmt/ostr.h"
+#include <math.h>  
 
 #include "solver.h"
+#include "materials.h"
 
 namespace perturbation
 {
     using vecd = std::vector<double>;
+    using vecvec = std::vector<Eigen::VectorXd>;
     using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
+    using Tensor0D = Eigen::Tensor<double, 0, Eigen::RowMajor>;
     using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
     using Tensor2D = Eigen::Tensor<double, 2, Eigen::RowMajor>;
 
-    void handleDegeneratedEigenvalues(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, double max_eps = 1e-6);
+    template <typename T>
+    void handleDegeneratedEigenvalues(T &solver, T &solver_star, double max_eps = 1e-6);
 
-    bool checkBiOrthogonality(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat>&solver_star, double max_eps = 1e-6, bool raise_error = false, bool remove = false);
+    template <typename T>
+    bool checkBiOrthogonality(T &solver, T &solver_star, double max_eps = 1e-6, bool raise_error = false, bool remove = false);
 
-    std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert, std::string norm_method);
+    template <typename T>
+    std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver, T &solver_star, T &solver_pert, std::string norm_method);
 
-    std::tuple<Eigen::VectorXd, double, Tensor2D> highOrderPerturbation(int order, solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert);
-    std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPython(int order, solver::SolverFull<SpMat> &solver, solver::SolverFull<SpMat> &solver_star, solver::SolverFull<SpMat> &solver_pert);
+    template <typename T>
+    std::tuple<Eigen::VectorXd, double, Tensor2D> highOrderPerturbation(int order, T &solver, T &solver_star, T &solver_pert);
+    template <typename T>
+    std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPython(int order, T &solver, T &solver_star, T &solver_pert);
 
     // the response are not ratio
-    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd> firstOrderGPT(const solver::SolverFull<SpMat> &solver, const solver::SolverFull<SpMat> &solver_star,
-                                                                       const solver::SolverFull<SpMat> &solver_pert,
+    template <typename T>
+    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solver_star,
+                                                                       const T &solver_pert,
                                                                        Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
                                                                        Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
                                                                        double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
                                                                        std::string inner_solver, std::string inner_precond);
+    template <class T>
+    class EpGPT
+    {
+    protected:
+        vecd m_x{};
+        vecd m_y{};
+        vecd m_z{};
+        std::array<double, 6> m_albedos{{0., 0., 0., 0., 0., 0.}};
+        std::vector<std::vector<std::vector<std::string>>> m_geometry{};
+
+        mat::Middles m_middles{};
+        T m_solver{};
+
+        double m_precision{1e-5};
+        vecvec m_basis{};
+
+        T &createPerturbedSolver(std::map<std::string, double> reactions);
+
+        void clearBasis();
+        void updateBasis(T &solver_pert);
+        void testBasis();
+
+    public:
+        EpGPT(const EpGPT &copy) = default;
+
+        EpGPT(vecd &x, vecd &y, vecd &z, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+              double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
+
+        EpGPT(vecd &x, vecd &y, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+              double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
+
+        EpGPT(vecd &x, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+              double albedo_x0, double albedo_xn);
+
+        void createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double power_W,
+                         double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
+                         double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond);
+
+        auto getBasis() { return m_basis; };
+    };
+
+#include "perturbation.inl"
 
 } // namespace perturbation
-
-// using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
-// using Tensor2D = Eigen::Tensor<double, 2, Eigen::RowMajor>;
-// template <>
-// struct fmt::formatter<Tensor1D> : ostream_formatter
-// {
-// };
-// template <>
-// struct fmt::formatter<Tensor2D> : ostream_formatter
-// {
-// };
 
 #endif // PERTURBATION_H

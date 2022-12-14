@@ -428,7 +428,7 @@ inline void SolverFullPowerIt::solve(double tol, double tol_eigen_vectors, int n
 
 template <class T>
 void SolverFullPowerIt::solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                                   double tol_inner, int outer_max_iter, int inner_max_iter)
+                                       double tol_inner, int outer_max_iter, int inner_max_iter)
 {
 
     int pblm_dim = static_cast<int>(m_M.rows());

@@ -75,6 +75,38 @@ def test_materials(xs_aiea3d):
     # assert middles.getReactionIndex("D") == 0
     # assert middles.getReactionIndex("CHI") == 3
 
+def test_materials_random(xs_aiea3d):
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(
+        values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
+    middles_pert = mat.Middles(middles)
+
+    xs_value = middles.getXsValue("fuel1", 2, 'SIGA')
+    print(xs_value)
+    print(middles_pert.getXsValue("fuel1", 2, 'SIGA'))
+    print("------------------------------------")
+    middles_pert.multXsValue("fuel1", 2, 'SIGA', "ISO",  1.1)
+    print(middles.getXsValue("fuel1", 2, 'SIGA'))
+    print(middles_pert.getXsValue("fuel1", 2, 'SIGA'))
+
+    print("------------------------------------")
+    fuel1 = middles_pert.getMaterials()["fuel1"]
+    print(fuel1.getXsValue(2, "ISO", "SIGR"))
+    fuel1.multXsValue(2, "ISO", "SIGR", 1.1)
+    print(fuel1.getXsValue(2, "ISO", "SIGR"))
+
+    print("------------------------------------")
+    middles_pert2 = mat.Middles(middles)
+    for mat_name, material in middles_pert2.getMaterials().items():
+        print(mat_name, material.getValues())
+
+    middles_pert2.randomPerturbation(["SIGR"], 1.0)
+    for mat_name, material in middles_pert2.getMaterials().items():
+        print(mat_name, material.getValues())
+        print()
+
+
 
 def test_macrolib_1d(macrolib_1d):
     macrolib, _ = macrolib_1d

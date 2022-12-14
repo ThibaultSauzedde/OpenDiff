@@ -6,6 +6,10 @@
 #include <map>
 #include <tuple>
 #include <set>
+#include <random>
+#include <algorithm>
+#include <chrono>
+#include "spdlog/spdlog.h"
 
 #include <Eigen/Dense>
 
@@ -47,6 +51,7 @@ namespace mat
 
         const double getXsValue(const int i_grp, const std::string &isot_name, const std::string &reac_name) const;
         void setXsValue(const int i_grp, const std::string &isot_name, const std::string &reac_name, double value);
+        void multXsValue(const int i_grp, const std::string &isot_name, const std::string &reac_name, double value);
 
         const auto getReacNames() const { return m_reac_names; };
         const auto getIsotNames() const { return m_isot_names; };
@@ -77,12 +82,23 @@ namespace mat
         auto getMaterials() { return m_materials; };
         auto getConcentrations() { return m_conc; };
 
+        auto size() { return m_middles.size(); };
+
         double getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name) const;
         void setXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name, double value);
         double getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name) const;
+        void multXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name, double value);
+        void multXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, double value);
 
         const int getNbGroups() const { return m_nb_groups; };
         const auto getReacNames() const { return m_reac_names; };
+
+        void randomPerturbation(std::vector<std::string> reactions,
+                                std::default_random_engine &generator,
+                                std::geometric_distribution<int> &middles_distribution,
+                                std::uniform_int_distribution<int> &grp_distribution,
+                                std::uniform_real_distribution<double> &pert_value_distribution);
+        void randomPerturbationPython(std::vector<std::string> reactions, double pert_value_max);
     };
 
 } // namespace mat

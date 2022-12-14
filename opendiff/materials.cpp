@@ -163,7 +163,6 @@ namespace mat
     {
         if (i_grp < 1 || i_grp > m_nb_groups)
             throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the material");
-
         return m_values(i_grp - 1, getIndex(isot_name, reac_name));
     }
 
@@ -173,6 +172,16 @@ namespace mat
             throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the material");
 
         m_values(i_grp - 1, getIndex(isot_name, reac_name)) = value;
+        if ((reac_name != "SIGR") && (reac_name != "SIGF"))
+            majAdditionalXS();
+    }
+
+    void Material::multXsValue(const int i_grp, const std::string &isot_name, const std::string &reac_name, double value)
+    {
+        if (i_grp < 1 || i_grp > m_nb_groups)
+            throw std::invalid_argument("The wanted nrj group (" + std::to_string(i_grp) + ") is not in the material");
+
+        m_values(i_grp - 1, getIndex(isot_name, reac_name)) *= value;
         if ((reac_name != "SIGR") && (reac_name != "SIGF"))
             majAdditionalXS();
     }
@@ -203,13 +212,25 @@ namespace mat
         checkMiddles();
     }
 
+    // Middles::Middles(const Middles &copy)
+    // {
+    //     m_reac_names = copy.m_reac_names;
+    //     m_nb_groups = copy.m_nb_groups;
+    //     for (const auto &[mat_name, material] : copy.m_materials)
+    //         m_materials[mat_name] = Material(material);
+    //     for (const auto &[middle_name, mat_name] : copy.m_middles)
+    //         m_middles[middle_name] = mat_name;
+    //     for (const auto &[middle_name, conc] : copy.m_conc)
+    //         m_conc[middle_name] = conc;
+    // }
+
     void Middles::checkMiddles()
     {
         m_reac_names = m_materials.begin()->second.getReacNames();
         m_nb_groups = m_materials.begin()->second.getNbGroups();
-        for (const auto &[mat_name, mat] : m_materials)
+        for (const auto &[mat_name, material] : m_materials)
         {
-            if (mat.getNbGroups() != m_nb_groups)
+            if (material.getNbGroups() != m_nb_groups)
                 throw std::invalid_argument("The number if nrj group has to be the same in all the materials ! ");
         }
 
@@ -258,26 +279,82 @@ namespace mat
 
     double Middles::getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name) const
     {
-        auto mat = m_materials.at(m_middles.at(middle_name)) ; 
-        return mat.getXsValue(i_grp, isot_name, reac_name) * m_conc.at(middle_name).at(isot_name);
+        Material material = m_materials.at(m_middles.at(middle_name));
+        return material.getXsValue(i_grp, isot_name, reac_name) * m_conc.at(middle_name).at(isot_name);
     }
 
     void Middles::setXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name, double value)
     {
-        auto mat = m_materials.at(m_middles.at(middle_name)) ; 
-        mat.setXsValue(i_grp, isot_name, reac_name, value);
+        Material &material = m_materials.at(m_middles.at(middle_name));
+        material.setXsValue(i_grp, isot_name, reac_name, value);
     }
 
     double Middles::getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name) const
     {
-        auto mat = m_materials.at(m_middles.at(middle_name)) ;
-        auto isot_names = mat.getIsotNames();
+        Material material = m_materials.at(m_middles.at(middle_name));
+        auto isot_names = material.getIsotNames();
         double xs_value{0.};
-        // no chekc --> all the isot must have all the wanted reac !
+        // no check --> all the isot must have all the wanted reac !
         for (auto isot_name : isot_names)
-            xs_value += getXsValue(middle_name, i_grp, reac_name, isot_name);
+            xs_value += getXsValue(middle_name, i_grp, reac_name, isot_name) * m_conc.at(middle_name).at(isot_name);
 
         return xs_value;
+    }
+
+    void Middles::multXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name, double value)
+    {
+        Material &material = m_materials[m_middles.at(middle_name)];
+        material.multXsValue(i_grp, isot_name, reac_name, value);
+    }
+
+    void Middles::multXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, double value)
+    {
+        Material &material = m_materials[m_middles.at(middle_name)];
+        auto isot_names = material.getIsotNames();
+        // no check --> all the isot must have all the wanted reac !
+        for (auto isot_name : isot_names)
+            multXsValue(middle_name, i_grp, reac_name, isot_name, value);
+    }
+
+    void Middles::randomPerturbation(std::vector<std::string> reactions,
+                                     std::default_random_engine &generator,
+                                     std::geometric_distribution<int> &middles_distribution,
+                                     std::uniform_int_distribution<int> &grp_distribution,
+                                     std::uniform_real_distribution<double> &pert_value_distribution)
+    {
+        auto nb_middles_pert = std::max(middles_distribution(generator), 1);
+        if (nb_middles_pert >= static_cast<int>(m_middles.size()))
+            nb_middles_pert = static_cast<int>(m_middles.size()) - 1;
+        spdlog::debug("{} middles are modified", nb_middles_pert);
+        for (auto i{0}; i < nb_middles_pert; ++i)
+        {
+            auto it_middles = m_middles.begin();
+            std::advance(it_middles, rand() % m_middles.size());
+            std::string middle_name = it_middles->first;
+
+            std::shuffle(reactions.begin(), reactions.end(), generator);
+            std::string reac_name = reactions[0];
+            int i_grp = grp_distribution(generator);
+            double pert_value = 1 + pert_value_distribution(generator) / 100.;
+            // test if the value is not null 
+            if (getXsValue(middle_name, i_grp+1, reac_name) < 1e-8)
+            {
+                i -= 1 ; 
+                continue ; 
+            }
+            spdlog::info("Middle {}, group {}, reac {}, pertubation {}", middle_name, i_grp + 1, reac_name, pert_value);
+            multXsValue(middle_name, i_grp + 1, reac_name, pert_value);
+        }
+    }
+
+    void Middles::randomPerturbationPython(std::vector<std::string> reactions, double pert_value_max)
+    {
+        std::default_random_engine generator(std::chrono::system_clock::now().time_since_epoch().count());
+        std::geometric_distribution<int> middles_distribution(0.5);
+        std::uniform_int_distribution<int> grp_distribution(0, getNbGroups() - 1);
+        std::uniform_real_distribution<double> pert_value_distribution(-pert_value_max, +pert_value_max);
+        randomPerturbation(reactions, generator, middles_distribution,
+                           grp_distribution, pert_value_distribution);
     }
 
 } // namespace mat

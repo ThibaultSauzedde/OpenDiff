@@ -93,6 +93,7 @@ PYBIND11_MODULE(opendiff, m)
         .def("getValues", &mat::Material::getValues)
         .def("getXsValue", &mat::Material::getXsValue)
         .def("setXsValue", &mat::Material::setXsValue)
+        .def("multXsValue", &mat::Material::multXsValue)
         .def("getIndex", py::overload_cast<>(&mat::Material::getIndex, py::const_))
         .def("getIndex", py::overload_cast<const std::string &, const std::string &>(&mat::Material::getIndex, py::const_));
 
@@ -109,7 +110,10 @@ PYBIND11_MODULE(opendiff, m)
         .def("getNbGroups", &mat::Middles::getNbGroups)
         .def("setXsValue", &mat::Middles::setXsValue)
         .def("getXsValue", py::overload_cast<const std::string, const int, const std::string &, const std::string &>(&mat::Middles::getXsValue, py::const_))
-        .def("getXsValue", py::overload_cast<const std::string, const int, const std::string &>(&mat::Middles::getXsValue, py::const_));
+        .def("getXsValue", py::overload_cast<const std::string, const int, const std::string &>(&mat::Middles::getXsValue, py::const_))
+        .def("multXsValue", py::overload_cast<const std::string, const int, const std::string &, const std::string &, double>(&mat::Middles::multXsValue))
+        .def("multXsValue", py::overload_cast<const std::string, const int, const std::string &, double>(&mat::Middles::multXsValue))
+        .def("randomPerturbation", &mat::Middles::randomPerturbationPython);
 
     py::class_<mat::Macrolib>(materials, "Macrolib")
         // .def(py::init<const mat::Macrolib &>())
@@ -212,11 +216,20 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("inner_precond") = "");
 
     py::module perturbation = m.def_submodule("perturbation", "A module for the perturbation.");
-    perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality,
+    perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality<solver::SolverFull<SpMat>>,
                      py::arg("solver"), py::arg("solver_star"), py::arg("ev0") = 1.0,
                      py::arg("max_eps") = 1e-6, py::arg("raise_error") = false);
-    perturbation.def("handleDegeneratedEigenvalues", &perturbation::handleDegeneratedEigenvalues);
-    perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation);
-    perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython);
-    perturbation.def("firstOrderGPT", &perturbation::firstOrderGPT);
+    perturbation.def("handleDegeneratedEigenvalues", &perturbation::handleDegeneratedEigenvalues<solver::SolverFull<SpMat>>);
+    perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation<solver::SolverFull<SpMat>>);
+    perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython<solver::SolverFull<SpMat>>);
+    perturbation.def("firstOrderGPT", &perturbation::firstOrderGPT<solver::SolverFull<SpMat>>);
+
+    py::class_<perturbation::EpGPT<solver::SolverFullPowerIt>>(perturbation, "EpGPT")
+        .def(py::init<const perturbation::EpGPT<solver::SolverFullPowerIt> &>())
+        .def(py::init<vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double>())
+        .def(py::init<vecd &, vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double, double, double>())
+        .def(py::init<vecd &, vecd &, vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double, double, double, double, double>())
+        .def("createBasis", &perturbation::EpGPT<solver::SolverFullPowerIt>::createBasis)
+        .def("getBasis", &perturbation::EpGPT<solver::SolverFullPowerIt>::getBasis)
+        .def("getBasisCoeff", &perturbation::EpGPT<solver::SolverFullPowerIt>::getBasisCoeff);
 }

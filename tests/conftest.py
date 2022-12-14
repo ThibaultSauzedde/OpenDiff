@@ -55,12 +55,13 @@ def xs_aiea3d_pert_mat(xs_aiea3d):
     materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
     middles = mat.Middles(materials, middles)
     middles_pert = mat.Middles(middles)
+    # middles_pert.multXsValue("fuel1", 2, "NU_SIGF", "ISO", 1.02)
+    # middles_pert.multXsValue("fuel1", 2, "SIGR", "ISO", 1.01)
     sigr = middles_pert.getXsValue("fuel1", 2, "NU_SIGF")*1.02
     middles_pert.setXsValue("fuel1", 2, "NU_SIGF", "ISO", sigr)
 
     sigr = middles_pert.getXsValue("fuel1", 2, "SIGR")*1.01
     middles_pert.setXsValue("fuel1", 2, "SIGR", "ISO", sigr)
-
     return middles_pert
 
 
@@ -77,12 +78,12 @@ def get_1d_geom(nb_cells=20):
     return geometry, x_mesh
 
 
-def get_1d_nmid_geom(nb_cells=20):
+@pytest.fixture
+def nmid_geom_1d(nb_cells=20):
     x = [0, 20*9*2]
     pblm = ["refl", "fuel2", "fuel1", "fuel1", "fuel1_cr", "fuel1", "fuel1", "fuel1", "fuel1_cr"]
     pblm += pblm[::-1]
-    print(pblm)
-
+    
     #we mesh it 
     pblm_meshed = []
     for i in pblm: 
@@ -92,7 +93,6 @@ def get_1d_nmid_geom(nb_cells=20):
 
     pblm_meshed = [[pblm_meshed]]
 
-    print(pblm_meshed, x_mesh)
     return pblm_meshed, x_mesh
 
 @pytest.fixture
@@ -106,11 +106,11 @@ def macrolib_1d(xs_aiea3d):
     return macrolib, x_mesh
 
 @pytest.fixture
-def macrolib_1d_nmid(xs_aiea3d):
+def macrolib_1d_nmid(xs_aiea3d, nmid_geom_1d):
     all_mat, middles, isot_reac_names = xs_aiea3d
     materials = {mat_name: mat.Material(values, isot_reac_names) for mat_name, values in all_mat.items()}
     middles = mat.Middles(materials, middles)
-    geometry, x_mesh = get_1d_nmid_geom()
+    geometry, x_mesh = nmid_geom_1d
     macrolib = mat.Macrolib(middles, geometry)
 
     return macrolib, x_mesh
@@ -121,8 +121,8 @@ def macrolib_1d_pert(xs_aiea3d_pert_mat):
     return mat.Macrolib(xs_aiea3d_pert_mat, geometry)
 
 @pytest.fixture
-def macrolib_1d_nmid_pert(xs_aiea3d_pert_mat):
-    geometry, x_mesh = get_1d_nmid_geom()
+def macrolib_1d_nmid_pert(xs_aiea3d_pert_mat, nmid_geom_1d):
+    geometry, x_mesh = nmid_geom_1d
     return mat.Macrolib(xs_aiea3d_pert_mat, geometry)
 
 @pytest.fixture

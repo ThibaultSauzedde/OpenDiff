@@ -56,8 +56,7 @@ ParallelCompile("NPY_NUM_BUILD_JOBS",
 ext_modules = [
     Pybind11Extension("opendiff",
                       ['opendiff/opendiff.cpp', 'opendiff/materials.cpp',
-                       'opendiff/macrolib.cpp',
-                       'opendiff/perturbation.cpp'],
+                       'opendiff/macrolib.cpp',],
                       define_macros=[('VERSION_INFO', __version__)],
                       include_dirs=[
                           os.environ.get(

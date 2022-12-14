@@ -407,8 +407,8 @@ def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
         x_mesh, macrolib_1d_nmid_pert, 0., 0.)  # zero flux albedo
     s_pert.solve(inner_solver="SparseLU", inner_max_iter=500, tol=1e-10, tol_inner=1e-4)
 
-    power = s.normPower(1)
-    power_pert = s_pert.normPower(1)
+    power = s.normPower(1e6)
+    power_pert = s_pert.normPower(1e6)
 
     ev = s.getEigenVector(0)
     ev_pert = s_pert.getEigenVector(0)
@@ -472,5 +472,145 @@ def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
     
     plt.show()
 
+    # import ipdb
+    # ipdb.set_trace()
+
+
+def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.warning)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(
+        values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
+    geometry, x_mesh = nmid_geom_1d
+    macrolib = mat.Macrolib(middles, geometry)
+    epgpt_1d = pert.EpGPT(x_mesh, middles, geometry,
+                          0., 0.)
+    null_vect = []
+    epgpt_1d.createBasis(1e-5, ["D", "SIGA", "NU_SIGF", "CHI"], 10., 1e6,
+                         1e-6, 1e-5, null_vect, 1.,
+                         1e-5, 1000, 100, "SparseLU", "")
+    basis = epgpt_1d.getBasis()
+    basis_coeff = epgpt_1d.getBasisCoeff()
+    for i in range(len(basis)):
+        for j in range(len(basis)):
+            if (i == j):
+                continue
+            test = basis[i].dot(basis[j])
+            if test > 1e-6:
+                print(test)
+
+    for i in range(len(basis)):
+        test = basis[i].dot(basis[i])
+        if abs(test-1.) > 1e-6:
+            print(test)
+
+    x_mean = (x_mesh[:-1] + x_mesh[1:])/2.
+    fig, ax = plt.subplots()
+    for i in range(len(basis)):
+        ax.plot(basis[i])
+    plt.show()
+
     import ipdb
     ipdb.set_trace()
+
+
+def test_python_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.warning)
+    all_mat, middles, isot_reac_names = xs_aiea3d
+    materials = {mat_name: mat.Material(
+        values, isot_reac_names) for mat_name, values in all_mat.items()}
+    middles = mat.Middles(materials, middles)
+    geometry, x_mesh = nmid_geom_1d
+    macrolib = mat.Macrolib(middles, geometry)
+    # epgpt_1d = pert.EpGPT(x_mesh, middles, geometry,
+    #                       0., 0.)
+    # null_vect = []
+    # epgpt_1d.createBasis(1e-5, ["D", "SIGA", "NU_SIGF", "CHI"], 1., 1e6,
+    #                      1e-6, 1e-5, null_vect, 1.,
+    #                      1e-5, 1000, 100, "SparseLU", "")
+    # basis = epgpt_1d.getBasis()
+    # basis_coeff = epgpt_1d.getBasisCoeff()
+    tol = 1e-6
+    tol_eigen_vectors = 1e-5
+    v0 = []
+    tol_inner = 1e-4
+    outer_max_iter = 1000
+    inner_max_iter = 100
+    inner_solver = "SparseLU"
+    solver_ref = solver.SolverFullPowerIt(
+        x_mesh, macrolib, 0., 0.)
+    solver_ref.solve(tol, tol_eigen_vectors, 1, v0, 1.,
+                       tol_inner, outer_max_iter, inner_max_iter, inner_solver, "")
+    solver_ref.normPower(1e6)
+
+    basis = []
+    for i in range(500):
+        middles_pert = mat.Middles(middles)
+        middles_pert.randomPerturbation(["D", "SIGA", "NU_SIGF", "CHI"], 10.)
+        macrolib_pert = mat.Macrolib(middles_pert, geometry)
+        solver_i = solver.SolverFullPowerIt(
+            x_mesh, macrolib_pert, 0., 0.)
+        v0 = solver_ref.getEigenVectors()[0]
+        solver_i.solve(tol, tol_eigen_vectors, 1, v0, solver_ref.getEigenValues()[0],
+                       tol_inner, outer_max_iter, inner_max_iter, inner_solver, "")
+        solver_i.normPower(1e6)
+        # print("ev", 1e5 *(solver_ref.getEigenValues()[0] - solver_i.getEigenValues()[0]) / (solver_ref.getEigenValues()[0] * solver_i.getEigenValues()[0]))
+        
+        delta_ev = solver_i.getEigenVectors()[0] - solver_ref.getEigenVectors()[0]
+        basis_size_test = len(basis)
+        delta_ev_recons = np.zeros_like(delta_ev)
+        for k in range(basis_size_test):
+            coeff = basis[k].dot(delta_ev)
+            delta_ev_recons += coeff * basis[k]
+
+
+        test = np.linalg.norm(delta_ev - delta_ev_recons)/np.linalg.norm(delta_ev)
+        print(f"The reconstruction precision is {test:.2e} with a basis size {basis_size_test}")
+
+        if (test > 1e-5):
+            u_i = np.copy(delta_ev)
+            for k in range(len(basis)):
+                u_i -= basis[k].dot(u_i) * basis[k]
+            u_i /= np.linalg.norm(u_i)
+            basis.append(u_i)
+            
+
+
+
+    
+        # fig, ax = plt.subplots()
+        # ax.plot(delta_ev)
+        # ax.plot(delta_ev_recons)
+        # # plt.show()
+
+        # fig, ax = plt.subplots()
+        # ax.plot(u_i)
+        # plt.show()
+
+
+    for i in range(len(basis)):
+        for j in range(len(basis)):
+            if (i == j):
+                continue
+            test = basis[i].dot(basis[j])
+            if test > 1e-6:
+                print(test)
+
+    for i in range(len(basis)):
+        test = basis[i].dot(basis[i])
+        if abs(test-1.) > 1e-6:
+            print(test)
+
+    import ipdb; ipdb.set_trace()
+
+    # x_mean = (x_mesh[:-1] + x_mesh[1:])/2.
+    # fig, ax = plt.subplots()
+    # for i in range(len(basis)):
+    #     ax.plot(basis[i])
+    # plt.show()
+
+    # import ipdb
+    # ipdb.set_trace()

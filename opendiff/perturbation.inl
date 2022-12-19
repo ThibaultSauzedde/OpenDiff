@@ -254,11 +254,28 @@ std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPy
 }
 
 template <typename T>
-std::tuple<double, Eigen::VectorXd, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solver_star,
-                                                                   const T &solver_pert,
-                                                                   Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
-                                                                   Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
-                                                                   double tol, double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+std::tuple<double, Eigen::VectorXd> GPTAdjointImportance(const T &solver, const T &solver_star, Eigen::VectorXd &response, Eigen::VectorXd &norm,
+                                                         double tol, double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+{
+    auto eigen_vector = solver.getEigenVectors()[0];
+    double N_star = response.dot(eigen_vector) / norm.dot(eigen_vector);
+    Eigen::VectorXd source = response - N_star * norm;
+    auto solver_fixed_source_star = solver::SolverFullFixedSource(solver, solver_star, source);
+    solver_fixed_source_star.makeAdjoint();
+    auto v0 = Eigen::VectorXd();
+    solver_fixed_source_star.solve(tol, tol, 1, v0, 1.,
+                                   tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond);
+
+    Eigen::VectorXd gamma_star = solver_fixed_source_star.getGamma();
+
+    return std::make_tuple(N_star, gamma_star);
+}
+
+template <typename T>
+double firstOrderGPT(const T &solver, const T &solver_star, const T &solver_pert,
+                     Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
+                     Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
+                     double &N_star, Eigen::VectorXd &gamma_star)
 {
     auto K = solver.getK();
     auto M = solver.getM();
@@ -268,25 +285,38 @@ std::tuple<double, Eigen::VectorXd, Eigen::VectorXd> firstOrderGPT(const T &solv
     auto eigen_vector = solver.getEigenVectors()[0];
     auto eigen_vector_star = solver_star.getEigenVectors()[0];
     auto eigen_value = solver.getEigenValues()[0];
-    auto delta_resp = response_pert - response;
     auto delta_norm = norm_pert - norm;
-    double N_star = response.dot(eigen_vector) / norm.dot(eigen_vector);
-    Eigen::VectorXd source = response - N_star * norm;
 
-    auto solver_fixed_source_star = solver::SolverFullFixedSource(solver, solver_star, source);
-    solver_fixed_source_star.makeAdjoint();
-    auto v0 = Eigen::VectorXd();
-    solver_fixed_source_star.solve(tol, tol, 1, v0, 1.,
-                                   tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond);
+    double pert = 0;
 
-    Eigen::VectorXd gamma_star = solver_fixed_source_star.getGamma();
-    double pert = delta_resp.dot(eigen_vector);
+    // only if response != response_pert (we use the adress)
+    if (std::addressof(response_pert) != std::addressof(response))
+        pert += (response_pert - response).dot(eigen_vector);
+
     spdlog::debug("Delta response (only direct)  = {}", pert);
     pert -= gamma_star.dot(((K_pert - K) - (M_pert - M) * eigen_value) * eigen_vector);
     spdlog::debug("Delta response (direct + indirect)  = {}", pert);
     pert -= N_star * delta_norm.dot(eigen_vector);
     spdlog::debug("Delta response (direct + indirect + norm)  = {}", pert);
-    return std::make_tuple(pert, source, gamma_star);
+    return pert;
+}
+
+template <typename T>
+std::tuple<double, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solver_star,
+                                                  const T &solver_pert,
+                                                  Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
+                                                  Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
+                                                  double tol, double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+{
+
+    auto [N_star, gamma_star] = GPTAdjointImportance(solver, solver_star, response, norm,
+                                                     tol, tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond);
+    auto pert = firstOrderGPT(solver, solver_star, solver_pert,
+                              response, response_pert,
+                              norm, norm_pert,
+                              N_star, gamma_star);
+
+    return std::make_tuple(pert, gamma_star);
 }
 
 //
@@ -364,10 +394,19 @@ void EpGPT<T>::createBasis(double precision, std::vector<std::string> reactions,
     double r_precision_theory = 1e5;
     clearBasis();
 
-    // solve the unperturbeb problem
+    // solve the unperturbeb problem todo: move it in the constructor? or give the solvers and get info from it !!! it is probably better !
     m_solver.solve(tol, tol_eigen_vectors, 1, v0, ev0,
                    tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond);
     m_solver.normPower(power_W);
+    m_norm_vector = m_solver.getPowerNormVector();
+    // m_solver.normVector(m_norm_vector, power_W);
+
+    // todo :move this elsewhere???
+    m_solver_star = T(m_solver);
+    m_solver_star.makeAdjoint();
+    m_solver_star.solve(tol, tol_eigen_vectors, 1, v0, ev0,
+                        tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond);
+
     // complete the basis
     std::default_random_engine generator(std::chrono::system_clock::now().time_since_epoch().count());
     std::geometric_distribution<int> middles_distribution(0.5);
@@ -435,6 +474,83 @@ void EpGPT<T>::createBasis(double precision, std::vector<std::string> reactions,
         }
 
         if (nb_trial_succed >= nb_trial)
+        {
             r_precision_theory = 10 * std::sqrt(2 / M_PI) * r_precision_max_trial;
+            nb_trial_succed = 0.;
+            r_precision_max_trial = 0.;
+        }
     }
+}
+
+template <class T>
+void EpGPT<T>::calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
+                               int outer_max_iter, int inner_max_iter, std::string inner_solver)
+{
+    for (auto k{0}; k < static_cast<int>(m_basis.size()); ++k)
+    {
+        // importance calc
+        auto [N_star, gamma_star] = GPTAdjointImportance(m_solver, m_solver_star, m_basis[k], m_norm_vector,
+                                                         tol, tol_inner, outer_max_iter, inner_max_iter, inner_solver, "");
+        m_gamma_star.push_back(gamma_star);
+        m_N_star.push_back(N_star);
+        spdlog::warn("Importance {} / {} calculated", k + 1, m_basis.size());
+    }
+}
+
+template <class T>
+std::tuple<Eigen::VectorXd, double, vecd> EpGPT<T>::firstOrderPerturbation(T &solver_pert)
+{
+    auto K = m_solver.getK();
+    auto M = m_solver.getM();
+    auto K_pert = solver_pert.getK();
+    auto M_pert = solver_pert.getM();
+    auto eigen_values = m_solver.getEigenValues();
+    auto eigen_vectors = m_solver.getEigenVectors();
+    auto eigen_vectors_star = m_solver_star.getEigenVectors();
+    auto delta_M = (M_pert - M);
+    auto delta_L_ev = ((K_pert - K) - delta_M * eigen_values[0]) * eigen_vectors[0];
+
+    Eigen::VectorXd ev_recons = eigen_vectors[0]; // copy
+    auto eval_recons = eigen_values[0];
+    std::vector<double> a{};
+
+    auto norm_vector_pert = solver_pert.getPowerNormVector();
+    for (auto k{0}; k < static_cast<int>(m_basis.size()); ++k)
+    {
+        auto a_k = firstOrderGPT(m_solver, m_solver_star, solver_pert,
+                                 m_basis[k], m_basis[k],
+                                 m_norm_vector, norm_vector_pert,
+                                 m_N_star[k], m_gamma_star[k]);
+
+        a.push_back(a_k);
+        ev_recons -= a_k * m_basis[k];
+    }
+
+    eval_recons += eigen_vectors_star[0].dot(delta_L_ev) / (eigen_vectors_star[0].dot(M * eigen_vectors[0]));
+
+    solver_pert.clearEigenValues();
+    solver_pert.pushEigenValue(eval_recons);
+    solver_pert.pushEigenVector(ev_recons);
+
+    return std::make_tuple(ev_recons, eval_recons, a);
+}
+
+template <class T>
+void EpGPT<T>::dump(std::string file_name)
+{
+    H5Easy::File file(file_name, H5Easy::File::Overwrite);
+
+    H5Easy::dump(file, "/basis", m_basis);
+    H5Easy::dump(file, "/gamma_star", m_gamma_star);
+    H5Easy::dump(file, "/N_star", m_N_star);
+}
+
+template <class T>
+void EpGPT<T>::load(std::string file_name)
+{
+    H5Easy::File file(file_name, H5Easy::File::ReadOnly);
+
+    m_basis = H5Easy::load<vecvec>(file, "/basis");
+    m_gamma_star = H5Easy::load<vecvec>(file, "/gamma_star");
+    m_N_star = H5Easy::load<std::vector<double>>(file, "/N_star");
 }

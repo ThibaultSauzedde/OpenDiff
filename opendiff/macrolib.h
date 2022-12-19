@@ -6,6 +6,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/eigen.h>
 
+#include <Eigen/Dense>
 #include <unsupported/Eigen/CXX11/Tensor>
 
 #include "materials.h"
@@ -47,6 +48,7 @@ namespace mat
             else
                 throw std::invalid_argument("The wanted reac name (" + reac_name + ") and nrj group (" + std::to_string(i_grp) + ") is not in the materials");
         };
+
         const Tensor3D &getValues(const int i_grp, const std::string &reac_name) const
         {
             if (isIn(i_grp, reac_name))
@@ -56,6 +58,8 @@ namespace mat
         };
         const py::array_t<double> getValuesPython(const int i_grp, const std::string &reac_name) const;   // python wrapping
         const py::array_t<double> getValues1DPython(const int i_grp, const std::string &reac_name) const; // python wrapping
+
+        const Eigen::VectorXd getValuesArray(const int i_grp, const std::string &reac_name) const;
 
         bool isIn(const int i_grp, const std::string &reac_name) const
         {

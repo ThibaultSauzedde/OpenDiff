@@ -39,7 +39,6 @@ def test_checkBiOrthogonality(macrolib_1d_refine):
     pert.checkBiOrthogonality(s, s_star, 1e-10, True)
 
 
-
 def test_pert_first_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
@@ -241,7 +240,8 @@ def test_pert_first_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadi
     s_recons.normPower()
     delta = 100*(egvect_pert-egvect)/egvect
     delta_recons = 100*(egvect_recons-egvect_pert)/egvect_pert
-    assert np.max(np.abs(delta_recons)) == pytest.approx(1.080209457369273, abs=1e-6)
+    assert np.max(np.abs(delta_recons)) == pytest.approx(
+        1.080209457369273, abs=1e-6)
     npt.assert_almost_equal(delta.reshape(-1), delta_ref,
                             decimal=8)
     npt.assert_almost_equal(delta_recons.reshape(-1), delta_recons_ref,
@@ -314,6 +314,7 @@ def test_pert_high_order_1d(macrolib_1d_refine, macrolib_1d_pert_refine, datadir
     assert abs(1e5*(egval_recons -
                     egval_pert[0])/(egval_pert[0]*egval_recons)) == pytest.approx(0.0015, abs=0.1)
 
+
 def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir):
     solver.init_slepc()
     set_log_level(log_level.warning)
@@ -359,7 +360,7 @@ def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir
     #       egval_pert[0])/(egval_pert[0]*egval_recons))
 
     assert 1e5*(egval_recons -
-          egval_pert[0])/(egval_pert[0]*egval_recons) == pytest.approx(0.18, abs=0.1)
+                egval_pert[0])/(egval_pert[0]*egval_recons) == pytest.approx(0.18, abs=0.1)
 
     s_pert.normPower()
     s.normPower()
@@ -375,7 +376,8 @@ def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir
     # print(np.max(np.abs(delta)))
     # print(np.max(np.abs(delta_recons)))
 
-    assert np.max(np.abs(delta_recons)) == pytest.approx(1.0863853333508067, abs=1e-6)
+    assert np.max(np.abs(delta_recons)) == pytest.approx(
+        1.0863853333508067, abs=1e-6)
     # np.savetxt(
     #     "/home/ts249161/dev/these/openDiff/tests/test_perturbation/delta_recons_high_2d.txt", delta_recons.reshape(-1))
     delta_ref = np.loadtxt(datadir / "delta_2d.txt")
@@ -390,6 +392,7 @@ def test_pert_high_order_2d(macrolib_2d_refine, macrolib_2d_pert_refine, datadir
     # pp.plot_map2d(delta_recons[:, :, :, 1].sum(axis=0), [x_mesh, y_mesh],
     #               show=True, x_label=None, y_label=None, cbar=False, show_stat_data=True, show_edge=False, show_xy=False, sym=True, stat_data_size=12)
 
+
 def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
@@ -401,11 +404,13 @@ def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
     s_star = solver.SolverFullPowerIt(
         x_mesh, macrolib_1d_nmid_pert, 0., 0.)
     s_star.makeAdjoint()
-    s_star.solve(inner_solver="SparseLU", inner_max_iter=500, tol=1e-10, tol_inner=1e-4)
+    s_star.solve(inner_solver="SparseLU", inner_max_iter=500,
+                 tol=1e-10, tol_inner=1e-4)
 
     s_pert = solver.SolverFullPowerIt(
         x_mesh, macrolib_1d_nmid_pert, 0., 0.)  # zero flux albedo
-    s_pert.solve(inner_solver="SparseLU", inner_max_iter=500, tol=1e-10, tol_inner=1e-4)
+    s_pert.solve(inner_solver="SparseLU", inner_max_iter=500,
+                 tol=1e-10, tol_inner=1e-4)
 
     power = s.normPower(1e6)
     power_pert = s_pert.normPower(1e6)
@@ -413,7 +418,7 @@ def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
     ev = s.getEigenVector(0)
     ev_pert = s_pert.getEigenVector(0)
 
-    #get power in python
+    # get power in python
     sigf = np.concatenate([macrolib.getValues1D(
         1, "SIGF"),  macrolib.getValues1D(2, "SIGF")])
     efiss = np.concatenate([macrolib.getValues1D(
@@ -429,25 +434,27 @@ def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
     power_python_pert = norm_pert.dot(np.ravel(ev_pert))
     # norm_pert * np.ravel(ev_pert)
 
+    norm = s.getPowerNormVector()
+    norm_pert = s_pert.getPowerNormVector()
+
     response = np.zeros_like(norm)
     response[40] = norm[40]
-    response[int(response.shape[0]/2) + 40] = norm[int(response.shape[0]/2) + 40]
+    response[int(response.shape[0]/2) +
+             40] = norm[int(response.shape[0]/2) + 40]
     response_power = response.dot(np.ravel(ev))
     response_pert = np.zeros_like(norm_pert)
     response_pert[40] = norm_pert[40]
-    response_pert[int(response_pert.shape[0]/2) + 40] = norm_pert[int(response_pert.shape[0]/2) + 40]
+    response_pert[int(response_pert.shape[0]/2) +
+                  40] = norm_pert[int(response_pert.shape[0]/2) + 40]
     response_power_pert = response_pert.dot(np.ravel(ev_pert))
-
 
     x_mean = (x_mesh[:-1] + x_mesh[1:])/2.
 
+    delta_power_gpt, gamma_star = pert.firstOrderGPT(s, s_star, s_pert, response, response_pert, norm, norm_pert,
+                                                     1e-6, 1e-5, 20000, 500, "SparseLU", "")
+    gamma_star = gamma_star.reshape(ev.shape)
+    # source = source.reshape(ev.shape)
 
-
-    delta_power_gpt, source, gamma_star = pert.firstOrderGPT(s, s_star, s_pert, response, response_pert, norm, norm_pert,
-                                   1e-6, 1e-5, 20000, 500, "SparseLU", "")
-    gamma_star = gamma_star.reshape(ev.shape) 
-    source = source.reshape(ev.shape) 
-    
     fig, ax = plt.subplots()
     ax.plot(x_mean, ev[0, 0, 0, :], label="ev0")
     ax.plot(x_mean, ev[1, 0, 0, :], label="ev1")
@@ -459,24 +466,25 @@ def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
     ax.plot(x_mean, power[0, 0, :], label="power")
     ax.plot(x_mean, power_pert[0, 0, :], "--", label="power_pert")
     ax.plot(x_mean[40], response_power, "+", label="power")
-    ax.plot(x_mean[40], response_power_pert, "P", label="power_pert")    
-    ax.plot(x_mean[40], response_power-delta_power_gpt, "P", label="power_pert")    
+    ax.plot(x_mean[40], response_power_pert, "P", label="power_pert")
+    ax.plot(x_mean[40], response_power -
+            delta_power_gpt, "P", label="power_pert")
     plt.legend()
-    
+
     fig, ax = plt.subplots()
-    ax.plot(x_mean, source[0, 0, 0, :], label="source0")
-    ax.plot(x_mean, source[1, 0, 0, :], label="source1")
+    # ax.plot(x_mean, source[0, 0, 0, :], label="source0")
+    # ax.plot(x_mean, source[1, 0, 0, :], label="source1")
     ax.plot(x_mean, gamma_star[0, 0, 0, :], "--", label="gamma_star0")
     ax.plot(x_mean, gamma_star[1, 0, 0, :], "--", label="gamma_star1")
     plt.legend()
-    
+
     plt.show()
 
     # import ipdb
     # ipdb.set_trace()
 
 
-def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
+def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, macrolib_1d_nmid_pert, datadir):
     solver.init_slepc()
     set_log_level(log_level.warning)
     all_mat, middles, isot_reac_names = xs_aiea3d
@@ -485,6 +493,14 @@ def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
     middles = mat.Middles(materials, middles)
     geometry, x_mesh = nmid_geom_1d
     macrolib = mat.Macrolib(middles, geometry)
+
+    s_pert = solver.SolverFullPowerIt(
+        x_mesh, macrolib_1d_nmid_pert, 0., 0.)  # zero flux albedo
+    s_recons = solver.SolverFullPowerIt(s_pert)
+    s_pert.solve(inner_solver="SparseLU", inner_max_iter=500,
+                 tol=1e-10, tol_inner=1e-4)
+    s_pert.normPower(1e6)
+
     epgpt_1d = pert.EpGPT(x_mesh, middles, geometry,
                           0., 0.)
     null_vect = []
@@ -492,7 +508,6 @@ def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
                          1e-6, 1e-5, null_vect, 1.,
                          1e-5, 1000, 100, "SparseLU", "")
     basis = epgpt_1d.getBasis()
-    basis_coeff = epgpt_1d.getBasisCoeff()
     for i in range(len(basis)):
         for j in range(len(basis)):
             if (i == j):
@@ -507,13 +522,57 @@ def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
             print(test)
 
     x_mean = (x_mesh[:-1] + x_mesh[1:])/2.
-    fig, ax = plt.subplots()
-    for i in range(len(basis)):
-        ax.plot(basis[i])
-    plt.show()
+    # fig, ax = plt.subplots()
+    # for i in range(len(basis)):
+    #     ax.plot(basis[i])
+    # plt.show()
+
+    epgpt_1d.calcImportances(1e-5, [], 1e-5, 10000, 100, "SparseLU")
+    importances = epgpt_1d.getImportances()
+
+    # fig, ax = plt.subplots()
+    # for i in range(len(importances)):
+    #     ax.plot(importances[i])
+    # plt.show()
+
+    epgpt_1d.dump("./test_epgpt_1d.h5")
+
+    _, eigenvalue_recons, a = epgpt_1d.firstOrderPerturbation(s_recons)
+    eigenvalue = epgpt_1d.getSolver().getEigenValues()[0]
+    eigenvalue_pert = s_pert.getEigenValues()[0]
+
+    print(1e5*(eigenvalue_pert-eigenvalue)/(eigenvalue*eigenvalue_pert))
+    print(1e5*(eigenvalue_pert-eigenvalue_recons) /
+          (eigenvalue_recons*eigenvalue_pert))
 
     import ipdb
     ipdb.set_trace()
+
+    s_pert.normPower(1e6)
+    epgpt_1d.getSolver().normPower(1e6)
+    s_recons.normPower(1e6)
+
+    print(s_recons.getPower().sum())  # why the power is not exactlyc 1e6 ???
+
+    egvect_pert = s_pert.getEigenVector(0)
+    egvect = epgpt_1d.getSolver().getEigenVector(0)
+    egvect_recons = s_recons.getEigenVector(0)
+
+    fig, ax = plt.subplots(figsize=(15, 10))
+    ax.plot(x_mean, egvect[0, 0, 0, :], "--", label="init - 1", color='red')
+    ax.plot(x_mean, egvect[1, 0, 0, :], "--", label="init - 2", color='red')
+
+    ax.plot(x_mean, egvect_pert[0, 0, 0, :], label="pert - 1", color='blue')
+    ax.plot(x_mean, egvect_pert[1, 0, 0, :], label="pert - 2", color='orange')
+    ax.plot(x_mean, egvect_recons[0, 0, 0, :],
+            "-.", label="recons - 1", color='orange')
+    ax.plot(x_mean, egvect_recons[1, 0, 0, :],
+            "-.", label="recons - 2", color='blue')
+
+    ax.set_xlabel("x (cm")
+    ax.set_ylabel("$\phi$ (U.A.)")
+    ax.legend()
+    plt.show()
 
 
 def test_python_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
@@ -543,7 +602,7 @@ def test_python_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
     solver_ref = solver.SolverFullPowerIt(
         x_mesh, macrolib, 0., 0.)
     solver_ref.solve(tol, tol_eigen_vectors, 1, v0, 1.,
-                       tol_inner, outer_max_iter, inner_max_iter, inner_solver, "")
+                     tol_inner, outer_max_iter, inner_max_iter, inner_solver, "")
     solver_ref.normPower(1e6)
 
     basis = []
@@ -558,17 +617,19 @@ def test_python_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
                        tol_inner, outer_max_iter, inner_max_iter, inner_solver, "")
         solver_i.normPower(1e6)
         # print("ev", 1e5 *(solver_ref.getEigenValues()[0] - solver_i.getEigenValues()[0]) / (solver_ref.getEigenValues()[0] * solver_i.getEigenValues()[0]))
-        
-        delta_ev = solver_i.getEigenVectors()[0] - solver_ref.getEigenVectors()[0]
+
+        delta_ev = solver_i.getEigenVectors(
+        )[0] - solver_ref.getEigenVectors()[0]
         basis_size_test = len(basis)
         delta_ev_recons = np.zeros_like(delta_ev)
         for k in range(basis_size_test):
             coeff = basis[k].dot(delta_ev)
             delta_ev_recons += coeff * basis[k]
 
-
-        test = np.linalg.norm(delta_ev - delta_ev_recons)/np.linalg.norm(delta_ev)
-        print(f"The reconstruction precision is {test:.2e} with a basis size {basis_size_test}")
+        test = np.linalg.norm(delta_ev - delta_ev_recons) / \
+            np.linalg.norm(delta_ev)
+        print(
+            f"The reconstruction precision is {test:.2e} with a basis size {basis_size_test}")
 
         if (test > 1e-5):
             u_i = np.copy(delta_ev)
@@ -576,11 +637,7 @@ def test_python_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
                 u_i -= basis[k].dot(u_i) * basis[k]
             u_i /= np.linalg.norm(u_i)
             basis.append(u_i)
-            
 
-
-
-    
         # fig, ax = plt.subplots()
         # ax.plot(delta_ev)
         # ax.plot(delta_ev_recons)
@@ -589,7 +646,6 @@ def test_python_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
         # fig, ax = plt.subplots()
         # ax.plot(u_i)
         # plt.show()
-
 
     for i in range(len(basis)):
         for j in range(len(basis)):
@@ -604,7 +660,8 @@ def test_python_EpGPT_1d(xs_aiea3d, nmid_geom_1d, datadir):
         if abs(test-1.) > 1e-6:
             print(test)
 
-    import ipdb; ipdb.set_trace()
+    import ipdb
+    ipdb.set_trace()
 
     # x_mean = (x_mesh[:-1] + x_mesh[1:])/2.
     # fig, ax = plt.subplots()

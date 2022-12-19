@@ -115,7 +115,7 @@ inline bool Solver::isOrthogonal(double max_eps, bool raise_error)
 }
 
 // todo: use getPower(Tensor4Dconst
-// todo: use matrix muktiplication
+// todo: use matrix multiplication
 inline Tensor3D Solver::getPower(int i)
 {
     auto nb_groups = m_macrolib.getNbGroups();
@@ -132,6 +132,22 @@ inline Tensor3D Solver::getPower(int i)
     }
 
     return power;
+}
+
+inline Eigen::VectorXd Solver::getPowerNormVector()
+{
+    auto nb_groups = m_macrolib.getNbGroups();
+    auto dim = m_macrolib.getDim();
+    auto dim_z = std::get<2>(dim), dim_y = std::get<1>(dim), dim_x = std::get<0>(dim);
+    auto dim_xyz = dim_z * dim_y * dim_x;
+    Eigen::VectorXd norm_vector = Eigen::VectorXd::Zero(nb_groups * dim_xyz);
+
+    for (int i{0}; i < nb_groups; ++i)
+    {
+        norm_vector.segment(i * dim_xyz, dim_xyz) = m_macrolib.getValuesArray(i + 1, "SIGF") * m_macrolib.getValuesArray(i + 1, "EFISS");
+    }
+
+    return norm_vector;
 }
 
 // Tensor3D getPower(Tensor4Dconst eigenvectori)
@@ -218,6 +234,18 @@ inline void Solver::normPhi()
     }
     m_is_normed = true;
     m_norm_method = "Phi";
+}
+
+inline void Solver::normVector(Eigen::VectorXd vector, double value)
+{
+    int nb_ev = static_cast<int>(m_eigen_vectors.size());
+    for (int i{0}; i < nb_ev; ++i)
+    {
+        double factor = vector.dot(m_eigen_vectors[i]) / value;
+        m_eigen_vectors[i] = m_eigen_vectors[i] / factor;
+    }
+    m_is_normed = true;
+    m_norm_method = "Vector";
 }
 
 inline void Solver::norm(std::string method, solver::Solver &solver_star, double power_W)

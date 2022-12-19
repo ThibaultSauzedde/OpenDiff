@@ -8,7 +8,10 @@
 #include <random>
 #include <chrono>
 #include "spdlog/fmt/ostr.h"
-#include <math.h>  
+#include <math.h>
+#include <memory> //std::addressof
+
+#include <highfive/H5Easy.hpp> // serialization
 
 #include "solver.h"
 #include "materials.h"
@@ -36,14 +39,26 @@ namespace perturbation
     template <typename T>
     std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPython(int order, T &solver, T &solver_star, T &solver_pert);
 
+    template <typename T>
+    std::tuple<double, Eigen::VectorXd> GPTAdjointImportance(const T &solver, const T &solver_star,
+                                                             Eigen::VectorXd &response, Eigen::VectorXd &norm,
+                                                             double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
+                                                             std::string inner_solver, std::string inner_precond);
+
+    template <typename T>
+    double firstOrderGPT(const T &solver, const T &solver_star, const T &solver_pert,
+                         Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
+                         Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
+                         double &N_star, Eigen::VectorXd &gamma_star);
+
     // the response are not ratio
     template <typename T>
-    std::tuple<double, Eigen::VectorXd, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solver_star,
-                                                                       const T &solver_pert,
-                                                                       Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
-                                                                       Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
-                                                                       double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
-                                                                       std::string inner_solver, std::string inner_precond);
+    std::tuple<double, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solver_star,
+                                                      const T &solver_pert,
+                                                      Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
+                                                      Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
+                                                      double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
+                                                      std::string inner_solver, std::string inner_precond);
     template <class T>
     class EpGPT
     {
@@ -55,16 +70,19 @@ namespace perturbation
         std::vector<std::vector<std::vector<std::string>>> m_geometry{};
 
         mat::Middles m_middles{};
+
         T m_solver{};
+        T m_solver_star{};
+        Eigen::VectorXd m_norm_vector{};
 
         double m_precision{1e-5};
         vecvec m_basis{};
+        vecvec m_gamma_star{};
+        std::vector<double> m_N_star{};
 
         T &createPerturbedSolver(std::map<std::string, double> reactions);
 
         void clearBasis();
-        void updateBasis(T &solver_pert);
-        void testBasis();
 
     public:
         EpGPT(const EpGPT &copy) = default;
@@ -82,7 +100,20 @@ namespace perturbation
                          double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
                          double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond);
 
-        auto getBasis() { return m_basis; };
+        void calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
+                             int outer_max_iter, int inner_max_iter, std::string inner_solver);
+
+        std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver_pert);
+
+        auto &getBasis() { return m_basis; };
+        auto &getImportances() { return m_gamma_star; };
+        auto &getN_star() { return m_N_star; };
+        auto &getSolver() { return m_solver; };
+        auto &getSolverStar() { return m_solver_star; };
+
+        void dump(std::string file_name);
+
+        void load(std::string file_name);
     };
 
 #include "perturbation.inl"

@@ -132,4 +132,12 @@ namespace mat
                                                         values_1d.data());
     }
 
+    // todo fix issue with view and use reference for the return param !
+    const Eigen::VectorXd Macrolib::getValuesArray(const int i_grp, const std::string &reac_name) const
+    {
+        auto values_1d = getValues1D(i_grp, reac_name);
+
+        return Eigen::Map<const Eigen::VectorXd>(values_1d.data(), values_1d.dimension(0));
+    }
+
 } // namespace mat

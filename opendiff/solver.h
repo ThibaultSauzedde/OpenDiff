@@ -10,6 +10,7 @@
 #include <pybind11/stl.h>
 #include <pybind11/eigen.h>
 
+#include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <Eigen/IterativeLinearSolvers>
 #include <unsupported/Eigen/IterativeSolvers>
@@ -226,6 +227,8 @@ namespace solver
         // todo: use matrix muktiplication
         Tensor3D getPower(int i = 0);
 
+        Eigen::VectorXd getPowerNormVector();
+
         const py::array_t<double> getPowerPython();
 
         const Tensor3D normPower(double power_W = 1);
@@ -235,6 +238,8 @@ namespace solver
         void normPhiStarMPhi(solver::Solver &solver_star);
 
         void normPhi();
+
+        void normVector(Eigen::VectorXd vector, double value);
 
         virtual double getPhiStarMPhi(solver::Solver &solver_star, int i) = 0;
 

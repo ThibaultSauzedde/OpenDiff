@@ -108,6 +108,9 @@ PYBIND11_MODULE(opendiff, m)
         .def("getConcentrations", &mat::Middles::getConcentrations)
         .def("getReacNames", &mat::Middles::getReacNames)
         .def("getNbGroups", &mat::Middles::getNbGroups)
+        .def("addMaterial", &mat::Middles::addMaterial)
+        .def("addMiddleNoConc", py::overload_cast<const std::string, const std::string>(&mat::Middles::addMiddle))
+        .def("addMiddle", py::overload_cast<const std::string, const std::string, std::map<std::string, double> &>(&mat::Middles::addMiddle))
         .def("setXsValue", &mat::Middles::setXsValue)
         .def("getXsValue", py::overload_cast<const std::string, const int, const std::string &, const std::string &>(&mat::Middles::getXsValue, py::const_))
         .def("getXsValue", py::overload_cast<const std::string, const int, const std::string &>(&mat::Middles::getXsValue, py::const_))
@@ -185,7 +188,7 @@ PYBIND11_MODULE(opendiff, m)
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
-        .def("solve", &solver::SolverFullSlepc::solveIterative,
+        .def("solve", &solver::SolverFullSlepc::solve,
              py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-5,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,

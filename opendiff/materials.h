@@ -78,6 +78,28 @@ namespace mat
 
         void createIndependantMaterials();
 
+        void addMaterial(std::string name, Material value)
+        {
+            m_materials[name] = value;
+            checkMiddles();
+        };
+
+        void addMiddle(std::string middle_name, std::string mat_name, std::map<std::string, double> &concentrations)
+        {
+            m_middles[middle_name] = mat_name;
+            m_conc[middle_name] = concentrations;
+            checkMiddles();
+        };
+
+        void addMiddle(std::string middle_name, std::string mat_name)
+        {
+            m_middles[middle_name] = mat_name;
+            // set the concentration to 1
+            for (auto isot_name : m_materials[mat_name].getIsotNames())
+                m_conc[middle_name][isot_name] = 1.;
+            checkMiddles();
+        };
+
         auto getMiddles() { return m_middles; };
         auto getMaterials() { return m_materials; };
         auto getConcentrations() { return m_conc; };

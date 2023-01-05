@@ -54,6 +54,7 @@ namespace solver
 
         vecd m_eigen_values{};
         vecvec m_eigen_vectors{};
+        double m_dominance_ratio{0.7};
 
     public:
 
@@ -129,6 +130,17 @@ namespace solver
 
             return m_eigen_values[i];
         };
+
+        const auto getDominanceRatio() const
+        {
+            return m_dominance_ratio;
+        };      
+
+        void setDominanceRatio(double dominance_ratio)
+        {
+            m_dominance_ratio = dominance_ratio;
+        };  
+
 
         const auto getEigenVector(int i_grp, Eigen::VectorXd &eigen_vector) const
         {
@@ -216,8 +228,11 @@ namespace solver
         virtual void makeAdjoint() = 0;
         bool isAdjoint() { return m_is_adjoint; };
 
-        virtual void solve(double tol = 1e-6, double tol_eigen_vectors = 1e-4, int nb_eigen_values = 1, const Eigen::VectorXd &v0 = Eigen::VectorXd(), double ev0 = 1,
-                           double tol_inner = 1e-6, int outer_max_iter = 500, int inner_max_iter = 200, std::string inner_solver = "BiCGSTAB", std::string inner_precond = "") = 0;
+        virtual void solve(double tol = 1e-6, double tol_eigen_vectors = 1e-4, int nb_eigen_values = 1,
+                           const Eigen::VectorXd &v0 = Eigen::VectorXd(), double ev0 = 1,
+                           double tol_inner = 1e-6, int outer_max_iter = 500, int inner_max_iter = 200,
+                           std::string inner_solver = "BiCGSTAB", std::string inner_precond = "",
+                           std::string acceleration = "") = 0;
 
         void handleDenegeratedEigenvalues(double max_eps = 1e-6);
 
@@ -310,14 +325,23 @@ namespace solver
 
     class SolverFullPowerIt : public SolverFull<SpMat>
     {
+
+    private:
+        void chebyshevAcceleration();
+
     public:
         using SolverFull<SpMat>::SolverFull;
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                   std::string acceleration = "") override;
 
         template <class T>
-        void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+        void solveUnaccelerated(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                                double tol_inner, int outer_max_iter, int inner_max_iter);
+
+        template <class T>
+        void solveChebyshev(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                             double tol_inner, int outer_max_iter, int inner_max_iter);
     };
 
@@ -327,23 +351,25 @@ namespace solver
         using SolverFull<SpMat>::SolverFull;
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                   std::string acceleration) override;
 
-        void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond);
+        void solve(double tol, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond);
     };
 
-    class SolverFullSpectra : public SolverFull<SpMat>
-    {
-    public:
-        using SolverFull<SpMat>::SolverFull;
+    // class SolverFullSpectra : public SolverFull<SpMat>
+    // {
+    // public:
+    //     using SolverFull<SpMat>::SolverFull;
 
-        void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
+    //     void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+    //                double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+    //                std::string acceleration) override;
 
-        void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond);
-    };
+    //     void solve(double tol, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+    //                double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond);
+    // };
 
     template <class T>
     class SolverCond : public Solver
@@ -360,15 +386,14 @@ namespace solver
         SolverCond(const SolverCond &copy) = default;
 
         SolverCond(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
-               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
+                   double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
 
         SolverCond(vecd &x, vecd &y, mat::Macrolib &macrolib,
-               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
+                   double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
 
         SolverCond(vecd &x, mat::Macrolib &macrolib, double albedo_x0, double albedo_xn);
 
-        const auto getFissionSource(Eigen::VectorXd &eigen_vector) ; 
-
+        const auto getFissionSource(Eigen::VectorXd &eigen_vector);
 
         void makeAdjoint()
         {
@@ -377,8 +402,8 @@ namespace solver
 
         double getPhiStarMPhi(solver::Solver &solver_star, int i)
         {
-            //todo: fill it
-            return 1.0 ; 
+            // todo: fill it
+            return 1.0;
         };
     };
 
@@ -388,11 +413,14 @@ namespace solver
         using SolverCond<SpMat>::SolverCond;
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
-
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                   std::string acceleration = "") override;
 
         template <class T>
-        void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+        void solveUnaccelerated(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                                double tol_inner, int outer_max_iter, int inner_max_iter);
+
+        void solveChebyshev(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                             double tol_inner, int outer_max_iter, int inner_max_iter);
     };
 
@@ -405,7 +433,7 @@ namespace solver
     //            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
 
     // template <class T>
-    // void solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+    // void solveUnaccelerated(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
     //                     double tol_inner, int outer_max_iter, int inner_max_iter);
     // };
 
@@ -422,10 +450,15 @@ namespace solver
         SolverFullFixedSource(const SolverFull<SpMat> &solver, const SolverFull<SpMat> &solver_star, const Eigen::VectorXd &source);
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond) override;
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                   std::string acceleration = "") override;
 
         template <class T>
-        void solveIterative(double tol, const Eigen::VectorXd &v0,
+        void solveUnaccelerated(double tol, const Eigen::VectorXd &v0,
+                                double tol_inner, int outer_max_iter, int inner_max_iter);
+
+        template <class T>
+        void solveChebyshev(double tol, const Eigen::VectorXd &v0,
                             double tol_inner, int outer_max_iter, int inner_max_iter);
 
         const auto &getGamma() const

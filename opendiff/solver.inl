@@ -258,7 +258,6 @@ inline void Solver::norm(std::string method, solver::Solver &solver_star, double
         throw std::invalid_argument("Invalid method name!");
 }
 
-
 template <class T>
 void Solver::initInnerSolver(T &inner_solver, double tol_inner, int inner_max_iter)
 {
@@ -287,7 +286,7 @@ Eigen::VectorXd Solver::solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::V
     }
     spdlog::debug("Number of inner iteration: {}", inner_solver.iterations());
     spdlog::debug("Estimated error in inner iteration: {:.2e}", inner_solver.error());
-    return x ;
+    return x;
 }
 
 template <class T>
@@ -301,7 +300,7 @@ Eigen::VectorXd Solver::solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::V
     }
     spdlog::debug("Number of inner iteration: {}", inner_solver.iterations());
     spdlog::debug("Estimated error in inner iteration: {:.2e}", inner_solver.error());
-    return x ;
+    return x;
 }
 
 //specialization
@@ -309,7 +308,7 @@ template <>
 inline Eigen::VectorXd Solver::solveInner(Eigen::SparseLU<SpMat> &inner_solver, Eigen::VectorXd &b, Eigen::VectorBlock<Eigen::VectorXd> &x)
 {
     x = inner_solver.solve(b);
-    return x ;
+    return x;
 }
 
 // specialization
@@ -374,7 +373,7 @@ inline void Solver::load(std::string file_name)
 
 template <class T>
 SolverFull<T>::SolverFull(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
-                  double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn)
+                          double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn)
 {
     // calculate dx, dy
     auto dx = delta_coord(x);
@@ -394,7 +393,7 @@ SolverFull<T>::SolverFull(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
 
 template <class T>
 SolverFull<T>::SolverFull(vecd &x, vecd &y, mat::Macrolib &macrolib,
-                  double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn)
+                          double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn)
 {
     // calculate dx, dy
     auto dx = delta_coord(x);
@@ -429,34 +428,49 @@ SolverFull<T>::SolverFull(vecd &x, mat::Macrolib &macrolib, double albedo_x0, do
 // SolverFullPowerIt
 //-------------------------------------------------------------------------
 
-
 inline void SolverFullPowerIt::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                                     double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+                                     double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                                     std::string acceleration)
 {
     spdlog::debug("Inner solver : {}", inner_solver);
     spdlog::debug("Inner precond : {}", inner_precond);
-    if (inner_solver == "SparseLU")
-        SolverFullPowerIt::solveIterative<Eigen::SparseLU<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                           tol_inner, outer_max_iter, inner_max_iter);
+    if (acceleration == "chebyshev" && inner_solver == "SparseLU")
+        SolverFullPowerIt::solveChebyshev<Eigen::SparseLU<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                  tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
+        SolverFullPowerIt::solveChebyshev<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                       tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond.empty())
+        SolverFullPowerIt::solveChebyshev<Eigen::BiCGSTAB<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                  tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "GMRES" && inner_precond.empty())
+        SolverFullPowerIt::solveChebyshev<Eigen::GMRES<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                               tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
+        SolverFullPowerIt::solveChebyshev<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                                tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "SparseLU")
+        SolverFullPowerIt::solveUnaccelerated<Eigen::SparseLU<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                      tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
-        SolverFullPowerIt::solveIterative<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                                                   tol_inner, outer_max_iter, inner_max_iter);
+        SolverFullPowerIt::solveUnaccelerated<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                           tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "BiCGSTAB" && inner_precond.empty())
-        SolverFullPowerIt::solveIterative<Eigen::BiCGSTAB<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                              tol_inner, outer_max_iter, inner_max_iter);
+        SolverFullPowerIt::solveUnaccelerated<Eigen::BiCGSTAB<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                      tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "GMRES" && inner_precond.empty())
-        SolverFullPowerIt::solveIterative<Eigen::GMRES<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                           tol_inner, outer_max_iter, inner_max_iter);
+        SolverFullPowerIt::solveUnaccelerated<Eigen::GMRES<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                   tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
-        SolverFullPowerIt::solveIterative<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                                                            tol_inner, outer_max_iter, inner_max_iter);
+        SolverFullPowerIt::solveUnaccelerated<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                                    tol_inner, outer_max_iter, inner_max_iter);
     else
-        throw std::invalid_argument("The combinaison of inner_solver and inner_precond is not known");
+        throw std::invalid_argument("The combinaison of acceleration, inner_solver and inner_precond is not known");
 }
 
 template <class T>
-void SolverFullPowerIt::solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                                       double tol_inner, int outer_max_iter, int inner_max_iter)
+void SolverFullPowerIt::solveUnaccelerated(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                                           double tol_inner, int outer_max_iter, int inner_max_iter)
 {
 
     int pblm_dim = static_cast<int>(m_M.rows());
@@ -503,11 +517,11 @@ void SolverFullPowerIt::solveIterative(double tol, double tol_eigen_vectors, int
         // inner iteration
         v = solveInner<T>(solver, b, v);
 
-        eigen_value = v_prec.dot(v) ; //  v_norm_prec == 1 
+        eigen_value = v_prec.dot(v); //  v_norm_prec == 1 // may be we can just use the norm and only the raleyh coeff at the end
 
         r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff()) / (2 * eigen_value);
 
-        v /= v.norm() ; 
+        v /= v.norm();
 
         // convergence computation
         r_tol = std::abs(eigen_value - eigen_value_prec);
@@ -531,11 +545,146 @@ void SolverFullPowerIt::solveIterative(double tol, double tol_eigen_vectors, int
     spdlog::info("Eigen value = {:.5f}", eigen_value);
 }
 
+template <class T>
+void SolverFullPowerIt::solveChebyshev(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                                       double tol_inner, int outer_max_iter, int inner_max_iter)
+{
+
+    int pblm_dim = static_cast<int>(m_M.rows());
+    int v0_size = static_cast<int>(v0.size());
+
+    float r_tol = 1e5;
+    float r_tol_ev = 1e5;
+    float r_tol_ev2 = 1e5;
+
+    int nb_free_iter = 4;
+    int nb_chebyshev_cycle_iter = 6;
+
+    Eigen::VectorXd v(v0);
+
+    double v_error = 1.;
+    double v_error_prec = 1.;
+    double v_error_prec_acc = 1.;
+
+    if (v0_size == 0)
+        v.setConstant(pblm_dim, 1.);
+    else if (v0_size != pblm_dim)
+        throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
+    else
+        v /= v.norm();
+
+    Eigen::VectorXd v_prec(v);
+    Eigen::VectorXd v_prec_prec(v);
+
+    if (nb_eigen_values != 1)
+        throw std::invalid_argument("Only one eigen value can be computed with PI!");
+
+    spdlog::debug("Tolerance in outter iteration (eigen value): {:.2e}", tol);
+    spdlog::debug("Tolerance in outter iteration (eigen vector): {:.2e}", tol_eigen_vectors);
+    spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
+    spdlog::debug("Max. outer iteration : {}", outer_max_iter);
+    spdlog::debug("Max. inner iteration : {}", inner_max_iter);
+
+    double eigen_value = ev0;
+    double eigen_value_prec = eigen_value;
+    double dominance_ratio = 0.4;
+
+    double alpha;
+    double beta;
+
+    T solver;
+    initInnerSolver<T>(solver, tol_inner, inner_max_iter);
+    solver.compute(m_M);
+
+    // outer iteration
+    int i = 1; // total
+    int p = 1; // acc.
+    while ((r_tol > tol || r_tol_ev > tol_eigen_vectors || r_tol_ev2 > tol_eigen_vectors) && i < outer_max_iter)
+    {
+        spdlog::debug("----------------------------------------------------");
+        Eigen::VectorXd b = m_K * v / eigen_value;
+        // inner iteration
+        v = solveInner<T>(solver, b, v);
+
+        // free iteration
+        if (i <= nb_free_iter || dominance_ratio < 0.5 || dominance_ratio > 1 || std::isnan(dominance_ratio))
+        {
+            spdlog::debug("Free outer iteration {}", i);
+            v_error = (m_K * v - m_K * v_prec).norm();
+            v_error_prec_acc = v_error;
+            dominance_ratio = v_error / v_error_prec;
+            spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
+        }
+        // chebyshev acc.
+        else
+        {
+            spdlog::debug("Cheb outer iteration {} (cycle {}/{})", i, p, nb_chebyshev_cycle_iter);
+            if (p == 1) // first cycle
+            {
+                alpha = 2 / (2 - dominance_ratio);
+                beta = 0;
+            }
+            else
+            {
+                double gamma = std::acosh(2 / dominance_ratio - 1);
+                spdlog::debug("gamma = {}", gamma);
+                alpha = (4 / dominance_ratio) * std::cosh((p - 1) * gamma) / std::cosh(p * gamma);
+                beta = std::cosh((p - 2) * gamma) / std::cosh(p * gamma);
+                // beta = (1 - dominance_ratio / 2.) - 1 / alpha; //(1 - dominance_ratio / 2.) * alpha - 1;
+            }
+            spdlog::debug("alpha = {}", alpha);
+            spdlog::debug("beta = {}", beta);
+
+            v = v_prec + alpha * (v - v_prec) + beta * (v_prec - v_prec_prec);
+            v_error = (m_K * v - m_K * v_prec).norm();
+
+            if (p == nb_chebyshev_cycle_iter) // end of the cycle
+            {
+                double error_ratio = v_error / v_error_prec_acc;
+                double gamma = std::cosh((p - 1) * std::acosh((2 - dominance_ratio) / dominance_ratio)) * error_ratio;
+                spdlog::debug("{}, {}, {}, {}, {}", dominance_ratio, v_error, v_error_prec_acc, error_ratio, gamma);
+                dominance_ratio *= (std::cosh(std::acosh(gamma) / (p - 1)) + 1) / 2.;
+                v_error_prec_acc = v_error;
+                p = 0;
+                spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
+            }
+            p++;
+        }
+
+        // eigen_value *= v.lpNorm<1>() / v_prec.lpNorm<1>();
+        eigen_value /= v.dot(m_K * v_prec) / v.dot(m_K * v);
+
+        // convergence computation
+        r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff()) / (2 * eigen_value);
+        r_tol = std::abs(eigen_value - eigen_value_prec);
+        r_tol_ev2 = v_error / eigen_value;
+        // r_tol_ev2 = abs((v - v_prec).maxCoeff()) / eigen_value ;
+
+        eigen_value_prec = eigen_value;
+        v_prec_prec = v_prec;
+        v_prec = v;
+        v_error_prec = v_error;
+        spdlog::debug("Eigen value = {:.5f}", eigen_value);
+        spdlog::debug("Estimated error in outter iteration (eigen value): {:.2e}", r_tol);
+        spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
+        spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
+        i++;
+    }
+    // eigen_value = // to re estimate
+
+    spdlog::debug("----------------------------------------------------");
+    m_eigen_values.clear();
+    m_eigen_vectors.clear();
+    m_eigen_values.push_back(eigen_value);
+    m_eigen_vectors.push_back(v);
+    m_dominance_ratio = dominance_ratio;
+    spdlog::debug("Number of outter iteration: {}", i);
+    spdlog::info("Eigen value = {:.5f}", eigen_value);
+}
+
 //-------------------------------------------------------------------------
 // SolverFullSlepc
 //-------------------------------------------------------------------------
-
-
 
 // void SolverFullSlepc::makeAdjoint()
 // {
@@ -544,15 +693,16 @@ void SolverFullPowerIt::solveIterative(double tol, double tol_eigen_vectors, int
 // }
 
 inline void SolverFullSlepc::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                               double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+                                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                                   std::string acceleration)
 {
-    SolverFullSlepc::solveIterative(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                tol_inner, outer_max_iter, inner_max_iter, "krylovschur", inner_solver, inner_precond);
+    SolverFullSlepc::solve(tol, nb_eigen_values, v0, ev0,
+                           tol_inner, outer_max_iter, inner_max_iter, "krylovschur", inner_solver, inner_precond);
 }
 
 // todo add which eigen values (smallest, largest)
-inline void SolverFullSlepc::solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                                        double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond)
+inline void SolverFullSlepc::solve(double tol, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond)
 {
     int pblm_dim = static_cast<int>(m_M.rows());
     int v0_size = static_cast<int>(v0.size());
@@ -756,7 +906,7 @@ inline void SolverFullSlepc::solveIterative(double tol, double tol_eigen_vectors
 
 template <class T>
 SolverCond<T>::SolverCond(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
-                  double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn)
+                          double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn)
 {
     m_macrolib = macrolib;
 
@@ -769,21 +919,19 @@ SolverCond<T>::SolverCond(vecd &x, vecd &y, vecd &z, mat::Macrolib &macrolib,
     Eigen::array<Eigen::DenseIndex, 1> one_dim({static_cast<int>(vol.size())});
 
     m_volumes = vol.reshape(one_dim);
-    
+
     std::vector<T> D{};
     for (int g{0}; g < m_macrolib.getNbGroups(); ++g)
-        D.push_back(operators::diff_diffusion_op<T, Tensor1D>(g+1, dx, dy, dz, macrolib,
-         albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn));
+        D.push_back(operators::diff_diffusion_op<T, Tensor1D>(g + 1, dx, dy, dz, macrolib,
+                                                              albedo_x0, albedo_xn, albedo_y0, albedo_yn, albedo_z0, albedo_zn));
 
     operators::setup_cond_operators<T, Tensor1D>(m_F, m_chi, m_A, m_S,
-                           D, m_volumes, m_macrolib);
-
-
+                                                 D, m_volumes, m_macrolib);
 }
 
 template <class T>
 SolverCond<T>::SolverCond(vecd &x, vecd &y, mat::Macrolib &macrolib,
-                  double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn)
+                          double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn)
 {
     m_macrolib = macrolib;
 
@@ -798,11 +946,11 @@ SolverCond<T>::SolverCond(vecd &x, vecd &y, mat::Macrolib &macrolib,
 
     std::vector<T> D{};
     for (int g{0}; g < m_macrolib.getNbGroups(); ++g)
-        D.push_back(operators::diff_diffusion_op<T, Tensor1D>(g+1, dx, dy, macrolib,
-             albedo_x0, albedo_xn, albedo_y0, albedo_yn));
+        D.push_back(operators::diff_diffusion_op<T, Tensor1D>(g + 1, dx, dy, macrolib,
+                                                              albedo_x0, albedo_xn, albedo_y0, albedo_yn));
 
     operators::setup_cond_operators<T, Tensor1D>(m_F, m_chi, m_A, m_S,
-                           D, m_volumes, m_macrolib);
+                                                 D, m_volumes, m_macrolib);
 }
 
 template <class T>
@@ -816,69 +964,69 @@ SolverCond<T>::SolverCond(vecd &x, mat::Macrolib &macrolib, double albedo_x0, do
 
     std::vector<T> D{};
     for (int g{0}; g < m_macrolib.getNbGroups(); ++g)
-        D.push_back(operators::diff_diffusion_op<T, Tensor1D>(g+1, dx, macrolib, albedo_x0, albedo_xn));
+        D.push_back(operators::diff_diffusion_op<T, Tensor1D>(g + 1, dx, macrolib, albedo_x0, albedo_xn));
 
     operators::setup_cond_operators<T, Tensor1D>(m_F, m_chi, m_A, m_S,
-                           D, m_volumes, m_macrolib);
+                                                 D, m_volumes, m_macrolib);
 }
 
 template <class T>
 const auto SolverCond<T>::getFissionSource(Eigen::VectorXd &eigen_vector)
-{   
+{
 
     Eigen::VectorXd psi = Eigen::VectorXd::Zero(m_volumes.size());
 
     for (int g{0}; g < m_macrolib.getNbGroups(); ++g)
     {
-        psi += m_F[g] * getEigenVector(g+1, eigen_vector) ; 
+        psi += m_F[g] * getEigenVector(g + 1, eigen_vector);
     }
-    return psi ;     
+    return psi;
 }
 
 inline void SolverCondPowerIt::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                                 double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+                                     double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                                     std::string acceleration)
 {
     spdlog::debug("Inner solver : {}", inner_solver);
     spdlog::debug("Inner precond : {}", inner_precond);
 
     if (inner_solver == "SparseLU")
-        SolverCondPowerIt::solveIterative<Eigen::SparseLU<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                                                   tol_inner, outer_max_iter, inner_max_iter);
+        SolverCondPowerIt::solveUnaccelerated<Eigen::SparseLU<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                      tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "SimplicialLLT")
-        SolverCondPowerIt::solveIterative<Eigen::SimplicialLLT<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                                       tol_inner, outer_max_iter, inner_max_iter);
-    else if (inner_solver == "SimplicialLDLT")
-        SolverCondPowerIt::solveIterative<Eigen::SimplicialLDLT<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                                        tol_inner, outer_max_iter, inner_max_iter);
-    else if (inner_solver == "ConjugateGradient" && inner_precond.empty())
-        SolverCondPowerIt::solveIterative<Eigen::ConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+        SolverCondPowerIt::solveUnaccelerated<Eigen::SimplicialLLT<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                            tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "SimplicialLDLT")
+        SolverCondPowerIt::solveUnaccelerated<Eigen::SimplicialLDLT<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                            tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "ConjugateGradient" && inner_precond.empty())
+        SolverCondPowerIt::solveUnaccelerated<Eigen::ConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                               tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
-        SolverCondPowerIt::solveIterative<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                                                   tol_inner, outer_max_iter, inner_max_iter);
+        SolverCondPowerIt::solveUnaccelerated<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                           tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "BiCGSTAB" && inner_precond.empty())
-        SolverCondPowerIt::solveIterative<Eigen::BiCGSTAB<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                              tol_inner, outer_max_iter, inner_max_iter);
+        SolverCondPowerIt::solveUnaccelerated<Eigen::BiCGSTAB<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                      tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "GMRES" && inner_precond.empty())
-        SolverCondPowerIt::solveIterative<Eigen::GMRES<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                           tol_inner, outer_max_iter, inner_max_iter);
+        SolverCondPowerIt::solveUnaccelerated<Eigen::GMRES<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                   tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
-        SolverCondPowerIt::solveIterative<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
-                                                                                            tol_inner, outer_max_iter, inner_max_iter);
+        SolverCondPowerIt::solveUnaccelerated<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                                    tol_inner, outer_max_iter, inner_max_iter);
     else
         throw std::invalid_argument("The combinaison of inner_solver and inner_precond is not known");
 }
 
-
 template <class T>
-void SolverCondPowerIt::solveIterative(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                                       double tol_inner, int outer_max_iter, int inner_max_iter)
+void SolverCondPowerIt::solveUnaccelerated(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                                           double tol_inner, int outer_max_iter, int inner_max_iter)
 {
 
     int pblm_dim = m_macrolib.getNbGroups() * static_cast<int>(m_volumes.size());
     int v0_size = static_cast<int>(v0.size());
     auto dim = m_macrolib.getDim();
-    auto dim_xyz = std::get<2>(dim)*std::get<1>(dim)* std::get<0>(dim);
+    auto dim_xyz = std::get<2>(dim) * std::get<1>(dim) * std::get<0>(dim);
 
     float r_tol = 1e5;
     float r_tol_ev = 1e5;
@@ -907,7 +1055,7 @@ void SolverCondPowerIt::solveIterative(double tol, double tol_eigen_vectors, int
 
     Eigen::VectorXd psi = getFissionSource(v);
     Eigen::VectorXd psi_prec = Eigen::VectorXd{psi};
-  
+
     std::vector<T> solvers(m_macrolib.getNbGroups());
 
     // init fore the inner iterations
@@ -916,7 +1064,7 @@ void SolverCondPowerIt::solveIterative(double tol, double tol_eigen_vectors, int
         initInnerSolver<T>(solvers[g], tol_inner, inner_max_iter);
         solvers[g].compute(m_A[g]);
     }
-    
+
     // outer iteration
     int i = 0;
     while ((r_tol > tol || r_tol_ev > tol_eigen_vectors || r_tol_ev2 > tol_eigen_vectors) && i < outer_max_iter)
@@ -927,31 +1075,32 @@ void SolverCondPowerIt::solveIterative(double tol, double tol_eigen_vectors, int
         // inner iteration
         for (int g{0}; g < m_macrolib.getNbGroups(); ++g)
         {
-            // auto phi_g = getEigenVector(g+1, v) ;             
-            Eigen::VectorBlock<Eigen::VectorXd> phi_g =  v(Eigen::seqN(dim_xyz * g, dim_xyz));
-            Eigen::VectorXd b = m_chi[g] * psi / eigen_value ; 
+            // auto phi_g = getEigenVector(g+1, v) ;
+            Eigen::VectorBlock<Eigen::VectorXd> phi_g = v(Eigen::seqN(dim_xyz * g, dim_xyz));
+            Eigen::VectorXd b = m_chi[g] * psi / eigen_value;
             for (int gp{0}; gp < m_macrolib.getNbGroups(); ++gp)
             {
                 if (g <= gp)
-                    continue ; 
-                b += m_S[gp][g] * getEigenVector(gp+1, v);
-            }   
-            spdlog::debug("Inner iteration for group {}", g+1);
+                    continue;
+                b += m_S[gp][g] * getEigenVector(gp + 1, v);
+            }
+            spdlog::debug("Inner iteration for group {}", g + 1);
             phi_g = solveInner<T>(solvers[g], b, phi_g);
         }
         psi = eigen_value * getFissionSource(v);
 
-        eigen_value = psi_prec.dot(psi) ; //  v_norm_prec == 1 
+        eigen_value = psi_prec.dot(psi); //  v_norm_prec == 1
 
-        Eigen::ArrayXd psi_div = psi.array() / psi_prec.array() ;
+        Eigen::ArrayXd psi_div = psi.array() / psi_prec.array();
         r_tol_ev = (psi_div.maxCoeff<Eigen::NaNPropagationOptions::PropagateNumbers>() -
-                    psi_div.minCoeff<Eigen::NaNPropagationOptions::PropagateNumbers>()) / (2 * eigen_value);
+                    psi_div.minCoeff<Eigen::NaNPropagationOptions::PropagateNumbers>()) /
+                   (2 * eigen_value);
 
-        psi /= psi.norm() ; 
+        psi /= psi.norm();
 
         // convergence computation
         r_tol = std::abs(eigen_value - eigen_value_prec);
-        r_tol_ev2 = (psi - psi_prec).norm() / eigen_value ;
+        r_tol_ev2 = (psi - psi_prec).norm() / eigen_value;
 
         eigen_value_prec = eigen_value;
         psi_prec = psi;
@@ -983,36 +1132,53 @@ inline SolverFullFixedSource::SolverFullFixedSource(const SolverFull<SpMat> &sol
     m_eigen_values = solver.getEigenValues();
     m_eigen_vectors = solver.getEigenVectors();
     m_eigen_vectors_star = solver_star.getEigenVectors();
+    m_dominance_ratio = solver.getDominanceRatio();
     m_source = source;
 }
 
 inline void SolverFullFixedSource::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                                         double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond)
+                                         double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                                         std::string acceleration)
 {
     spdlog::debug("Inner solver : {}", inner_solver);
     spdlog::debug("Inner precond : {}", inner_precond);
-    if (inner_solver == "SparseLU")
-        SolverFullFixedSource::solveIterative<Eigen::SparseLU<SpMat>>(tol, v0,
+    if (acceleration == "chebyshev" && inner_solver == "SparseLU")
+        SolverFullFixedSource::solveChebyshev<Eigen::SparseLU<SpMat>>(tol, v0,
                                                                       tol_inner, outer_max_iter, inner_max_iter);
-    else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
-        SolverFullFixedSource::solveIterative<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, v0,
+    else if (acceleration == "chebyshev" && inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
+        SolverFullFixedSource::solveChebyshev<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, v0,
                                                                                            tol_inner, outer_max_iter, inner_max_iter);
-    else if (inner_solver == "BiCGSTAB" && inner_precond.empty())
-        SolverFullFixedSource::solveIterative<Eigen::BiCGSTAB<SpMat>>(tol, v0,
+    else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond.empty())
+        SolverFullFixedSource::solveChebyshev<Eigen::BiCGSTAB<SpMat>>(tol, v0,
                                                                       tol_inner, outer_max_iter, inner_max_iter);
-    else if (inner_solver == "GMRES" && inner_precond.empty())
-        SolverFullFixedSource::solveIterative<Eigen::GMRES<SpMat>>(tol, v0,
+    else if (acceleration == "chebyshev" && inner_solver == "GMRES" && inner_precond.empty())
+        SolverFullFixedSource::solveChebyshev<Eigen::GMRES<SpMat>>(tol, v0,
                                                                    tol_inner, outer_max_iter, inner_max_iter);
-    else if (inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
-        SolverFullFixedSource::solveIterative<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, v0,
+    else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
+        SolverFullFixedSource::solveChebyshev<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, v0,
                                                                                                     tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "SparseLU")
+        SolverFullFixedSource::solveUnaccelerated<Eigen::SparseLU<SpMat>>(tol, v0,
+                                                                          tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
+        SolverFullFixedSource::solveUnaccelerated<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, v0,
+                                                                                               tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "BiCGSTAB" && inner_precond.empty())
+        SolverFullFixedSource::solveUnaccelerated<Eigen::BiCGSTAB<SpMat>>(tol, v0,
+                                                                          tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "GMRES" && inner_precond.empty())
+        SolverFullFixedSource::solveUnaccelerated<Eigen::GMRES<SpMat>>(tol, v0,
+                                                                       tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
+        SolverFullFixedSource::solveUnaccelerated<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, v0,
+                                                                                                        tol_inner, outer_max_iter, inner_max_iter);
     else
         throw std::invalid_argument("The combinaison of inner_solver and inner_precond is not known");
 }
 
 template <class T>
-void SolverFullFixedSource::solveIterative(double tol, const Eigen::VectorXd &v0,
-                                           double tol_inner, int outer_max_iter, int inner_max_iter)
+void SolverFullFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd &v0,
+                                               double tol_inner, int outer_max_iter, int inner_max_iter)
 {
 
     int pblm_dim = static_cast<int>(m_M.rows());
@@ -1059,6 +1225,7 @@ void SolverFullFixedSource::solveIterative(double tol, const Eigen::VectorXd &v0
         v = solveInner<T>(solver, b, v);
 
         // decontamiation of gamma
+        // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
         if (isAdjoint())
             v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
         else
@@ -1070,6 +1237,135 @@ void SolverFullFixedSource::solveIterative(double tol, const Eigen::VectorXd &v0
         r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff());
         r_tol_ev2 = (v - v_prec).norm();
 
+        v_prec = v;
+        spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
+        spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
+        i++;
+    }
+    spdlog::debug("----------------------------------------------------");
+    m_gamma = v;
+    spdlog::debug("Number of outter iteration: {}", i);
+
+    spdlog::debug("Orthogonlity tests: ");
+    if (isAdjoint())
+    {
+        spdlog::debug("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]));
+        spdlog::debug("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]));
+    }
+    else
+    {
+        spdlog::debug("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]));
+        spdlog::debug("Gamma Phi : {}", v.dot(m_eigen_vectors[0]));
+    }
+}
+
+template <class T>
+void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0,
+                                           double tol_inner, int outer_max_iter, int inner_max_iter)
+{
+
+    int pblm_dim = static_cast<int>(m_M.rows());
+    int v0_size = static_cast<int>(v0.size());
+
+    float r_tol_ev = 1e5;
+    float r_tol_ev2 = 1e5;
+
+    Eigen::VectorXd v(v0);
+    Eigen::VectorXd v_prec(v0);
+    Eigen::VectorXd v_prec_prec(v0);
+
+    if (v0_size == 0)
+    {
+        v.setConstant(pblm_dim, 1.);
+        v_prec.setConstant(pblm_dim, 1.);
+        v_prec_prec.setConstant(pblm_dim, 1.);
+    }
+    else if (v0_size != pblm_dim)
+        throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
+
+    int nb_free_iter = 4;
+    int nb_chebyshev_cycle_iter = 9;
+
+    spdlog::debug("Tolerance in outter iteration (gamma): {:.2e}", tol);
+    spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
+    spdlog::debug("Max. outer iteration : {}", outer_max_iter);
+    spdlog::debug("Max. inner iteration : {}", inner_max_iter);
+
+    double alpha;
+    double beta;
+
+    T solver;
+    initInnerSolver<T>(solver, tol_inner, inner_max_iter);
+    solver.compute(m_M);
+
+    auto K = m_K;
+    if (isAdjoint())
+        K = m_K.adjoint();
+
+    double s_star_K_s = (m_eigen_vectors_star[0].dot(K * m_eigen_vectors[0]));
+    // double s_star_K_s = (m_eigen_vectors[0].dot(m_eigen_vectors[0])); // also works
+
+    double dominance_ratio = m_dominance_ratio;
+    spdlog::debug("Dominance ratio : {}", dominance_ratio);
+    if (dominance_ratio > 1 || std::isnan(dominance_ratio))
+        dominance_ratio = 0.2; // arbitrary < 0.5 
+
+    // outer iteration
+    int i = 1; // total
+    int p = 1; // acc.
+    while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter)
+    {
+        spdlog::debug("----------------------------------------------------");
+        spdlog::debug("Outer iteration {}", i);
+        Eigen::VectorXd b = m_K * v / m_eigen_values[0] + m_source;
+        // inner iteration
+        v = solveInner<T>(solver, b, v);
+
+        // decontamiation of gamma
+        // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
+        if (isAdjoint())
+            v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+        else
+            v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
+
+        // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
+
+        // free iteration
+        if (i <= nb_free_iter || dominance_ratio < 0.5)
+            spdlog::debug("Free outer iteration {}", i);
+        // chebyshev acc.
+        else
+        {
+            spdlog::debug("Cheb outer iteration {} (cycle {}/{})", i, p, nb_chebyshev_cycle_iter);
+            if (p == 1) // first cycle
+            {
+                alpha = 2 / (2 - dominance_ratio);
+                beta = 0;
+            }
+            else
+            {
+                double gamma = std::acosh(2 / dominance_ratio - 1);
+                spdlog::debug("gamma = {}", gamma);
+                alpha = (4 / dominance_ratio) * std::cosh((p - 1) * gamma) / std::cosh(p * gamma);
+                beta = std::cosh((p - 2) * gamma) / std::cosh(p * gamma);
+                // beta = (1 - dominance_ratio / 2.) - 1 / alpha; //(1 - dominance_ratio / 2.) * alpha - 1;
+            }
+            spdlog::debug("alpha = {}", alpha);
+            spdlog::debug("beta = {}", beta);
+
+            v = v_prec + alpha * (v - v_prec) + beta * (v_prec - v_prec_prec);
+
+            if (p == nb_chebyshev_cycle_iter) // end of the cycle
+                p = 0;
+
+            p++;
+        }
+
+        // convergence computation
+        r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff());
+        r_tol_ev2 = (v - v_prec).norm();
+
+        v_prec_prec = v_prec;
         v_prec = v;
         spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
         spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);

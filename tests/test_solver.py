@@ -422,8 +422,8 @@ def test_solverFixedSource_1d(macrolib_1d, datadir):
     s = solver.SolverFullPowerIt(x_mesh, macrolib, -1., -1.)
     s_star = solver.SolverFullPowerIt(s)
     s_star.makeAdjoint()
-    s.solve(inner_solver="SparseLU")
-    s_star.solve(inner_solver="SparseLU")
+    s.solve(inner_solver="SparseLU", acceleration="chebyshev")
+    s_star.solve(inner_solver="SparseLU", acceleration="chebyshev")
     ev = s.getEigenVector(0)
 
     source = np.zeros_like(ev)
@@ -433,7 +433,7 @@ def test_solverFixedSource_1d(macrolib_1d, datadir):
 
     source_flat = np.ravel(source)
     s_fixed_source = solver.SolverFullFixedSource(s, s_star, source_flat)
-    s_fixed_source.solve(inner_solver="SparseLU")
+    s_fixed_source.solve(inner_solver="SparseLU", acceleration="chebyshev", outer_max_iter=20)
     gamma = s_fixed_source.getGamma()
 
     import matplotlib.pyplot as plt
@@ -451,7 +451,7 @@ def test_solverFixedSource_1d(macrolib_1d, datadir):
     source_flat = np.ravel(source)
     s_fixed_source = solver.SolverFullFixedSource(s, s_star, source_flat)
     s_fixed_source.makeAdjoint()
-    s_fixed_source.solve(inner_solver="SparseLU")
+    s_fixed_source.solve(inner_solver="SparseLU", acceleration="chebyshev", outer_max_iter=20)
     gamma = s_fixed_source.getGamma()
     ev = s_star.getEigenVector(0)
 
@@ -466,6 +466,37 @@ def test_solverFixedSource_1d(macrolib_1d, datadir):
     plt.show()
 
 
+def test_cheb_acc():
+    dom_ratio = 0.988
+    print()
+    for p in range(1, 7):
+        if p == 1:
+            alpha = 2/(2-dom_ratio)
+            beta = 0.
+            print(alpha, beta)
+        else:
+            gamma = np.arccosh(2/dom_ratio-1)
+            alpha = 4/dom_ratio * np.cosh((p-1)*gamma) / np.cosh(p*gamma)
+            beta = np.cosh((p-2)*gamma) / np.cosh(p*gamma) 
+            beta_hebert = (1-dom_ratio/2)*alpha - 1
+            print(alpha, beta, beta_hebert, gamma)
+
+    # for p in range(1, 7):
+    #     if p == 1:
+    #         alpha = 2/dom_ratio
+    #         rho = 1/(alpha-1)
+
+    #         r0 = alpha*rho
+    #         r1 = rho
+    #         print(r0, r1)
+    #     else:
+    #         rho = 4/(4*(alpha-1)-rho)
+    #         alpha = rho/(rho-alpha)
+    #         r0 = alpha * r0
+    #         r1 = -rho
+    #         r2 = 1 - r0 - r1
+    #         print(r0, r1, r2)
+
 
 @pytest.mark.integtest
 def test_solverPI_3d_refine_lu(macrolib_3d_refine):
@@ -473,7 +504,7 @@ def test_solverPI_3d_refine_lu(macrolib_3d_refine):
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
     s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
-    s.solve(inner_solver="SparseLU")
+    s.solve(inner_solver="SparseLU", acceleration="chebyshev")
 
 @pytest.mark.integtest
 def test_solverPI_3d_refine_BiCGSTAB(macrolib_3d_refine):

@@ -43,7 +43,7 @@ namespace perturbation
     std::tuple<double, Eigen::VectorXd> GPTAdjointImportance(const T &solver, const T &solver_star,
                                                              Eigen::VectorXd &response, Eigen::VectorXd &norm,
                                                              double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
-                                                             std::string inner_solver, std::string inner_precond);
+                                                             std::string inner_solver, std::string inner_precond, std::string acceleration);
 
     template <typename T>
     double firstOrderGPT(const T &solver, const T &solver_star, const T &solver_pert,
@@ -58,7 +58,7 @@ namespace perturbation
                                                       Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
                                                       Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
                                                       double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
-                                                      std::string inner_solver, std::string inner_precond);
+                                                      std::string inner_solver, std::string inner_precond, std::string acceleration);
     template <class T>
     class EpGPT
     {
@@ -98,10 +98,11 @@ namespace perturbation
 
         void createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double power_W,
                          double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
-                         double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond);
+                         double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                         std::string acceleration);
 
         void calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
-                             int outer_max_iter, int inner_max_iter, std::string inner_solver);
+                             int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string acceleration);
 
         std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver_pert);
 

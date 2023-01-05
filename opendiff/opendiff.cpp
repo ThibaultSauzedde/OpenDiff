@@ -151,6 +151,8 @@ PYBIND11_MODULE(opendiff, m)
         .def("getVolumes", &solver::Solver::getVolumesPython)
         .def("makeAdjoint", &solver::Solver::makeAdjoint)
         .def("getEigenValues", &solver::Solver::getEigenValues)
+        .def("getDominanceRatio", &solver::Solver::getDominanceRatio)
+        .def("setDominanceRatio", &solver::Solver::setDominanceRatio)
         .def("getEigenVectors", &solver::Solver::getEigenVectors)
         .def("getVolumes", &solver::Solver::getVolumesPython)
         .def("getEigenVector", &solver::Solver::getEigenVectorPython)
@@ -181,15 +183,15 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
-             py::arg("inner_precond") = "");
+             py::arg("inner_precond") = "", py::arg("acceleration") = "chebyshev");
 
     py::class_<solver::SolverFullSlepc, solver::SolverFull<SpMat>>(solver, "SolverFullSlepc")
         .def(py::init<const solver::SolverFullSlepc &>())
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
-        .def("solve", &solver::SolverFullSlepc::solve,
-             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-5,
+        .def("solve", py::overload_cast<double, int, const Eigen::VectorXd &, double, double, int, int, std::string, std::string, std::string>(&solver::SolverFullSlepc::solve),
+             py::arg("tol") = 1e-6,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("solver") = "krylovschur",
@@ -207,7 +209,7 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
-             py::arg("inner_precond") = "");
+             py::arg("inner_precond") = "", py::arg("acceleration") = "");
 
     py::class_<solver::SolverFullFixedSource, solver::SolverFull<SpMat>>(solver, "SolverFullFixedSource")
         .def(py::init<const solver::SolverFullFixedSource &>())
@@ -218,7 +220,7 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
-             py::arg("inner_precond") = "");
+             py::arg("inner_precond") = "", py::arg("acceleration") = "chebyshev");
 
     py::module perturbation = m.def_submodule("perturbation", "A module for the perturbation.");
     perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality<solver::SolverFull<SpMat>>,
@@ -230,7 +232,8 @@ PYBIND11_MODULE(opendiff, m)
     perturbation.def("firstOrderGPT", py::overload_cast<const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &,
                                                         Eigen::VectorXd &, Eigen::VectorXd &,
                                                         Eigen::VectorXd &, Eigen::VectorXd &,
-                                                        double, double, int, int, std::string, std::string>(&perturbation::firstOrderGPT<solver::SolverFull<SpMat>>));
+                                                        double, double, int, int,
+                                                        std::string, std::string, std::string>(&perturbation::firstOrderGPT<solver::SolverFull<SpMat>>));
     // operators.def("diff_diffusion_op_3d", py::overload_cast<vecd &, vecd &, vecd &, mat::Macrolib &,
     //                                                         double, double, double, double, double, double>(&operators::diff_diffusion_op<SpMat, vecd>));
     // &perturbation::firstOrderGPT<solver::SolverFull<SpMat>>);

@@ -4,6 +4,9 @@
 #include <string>
 #include <map>
 
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
 #include "materials.h"
 
 namespace mat
@@ -277,6 +280,70 @@ namespace mat
         }
     }
 
+    std::vector<std::vector<std::vector<std::string>>> Middles::createIndependantMiddlesByPlane(
+        const std::vector<std::vector<std::vector<std::string>>> &geometry, std::vector<std::string> & ignore_middles, std::vector<int> & z_ids)
+    {
+        // create a new geometry with name indexed by the plane id 
+        std::vector<std::vector<std::vector<std::string>>> new_geometry;
+
+        int i = 0, j = 0, k = 0;
+
+        auto i_size = geometry[0].size();
+        auto j_size = geometry[0][0].size();
+
+        
+        if (!z_ids.empty() && geometry.size() != z_ids.size())
+            throw std::invalid_argument("The size of the z_ids vector must be the same than the z direction !");
+
+        for (std::vector i_val : geometry)
+        {
+            j = 0;
+            std::vector<std::vector<std::string>> vy;
+            if (i_size != i_val.size())
+                throw std::invalid_argument("The size of the vector must be the same in each direction ! (y)");
+
+            for (std::vector j_val : i_val)
+            {
+                k = 0;
+                std::vector<std::string> vx;
+                if (j_size != j_val.size())
+                    throw std::invalid_argument("The size of the vector must be the same in each direction ! (x)");
+
+                for (auto k_val : j_val)
+                {
+                    //not found
+                    if (std::find(ignore_middles.begin(), ignore_middles.end(), k_val) == ignore_middles.end())
+                    {
+                        auto new_name = k_val + "_z" ;
+                        if (z_ids.empty())
+                            new_name += std::to_string(i) ;
+                        else
+                            new_name += std::to_string(z_ids[i]) ;
+
+                        // geometry_tensor(i, j, k) = new_name;
+                        vx.push_back(new_name);
+                        //we add the middles
+                        m_middles[new_name] = m_middles[k_val];
+                        m_conc[new_name] = m_conc[k_val];
+                    }
+                    else
+                        vx.push_back(k_val);
+
+                    k++;
+                }
+                vy.push_back(vx);
+                j++;
+            }
+            new_geometry.push_back(vy);
+            i++;
+        }
+
+        // we create independant materials for the new middles
+        createIndependantMaterials();
+
+        return new_geometry ; 
+    }
+
     double Middles::getXsValue(const std::string middle_name, const int i_grp, const std::string &reac_name, const std::string &isot_name) const
     {
         Material material = m_materials.at(m_middles.at(middle_name));
@@ -322,7 +389,7 @@ namespace mat
                                      std::uniform_int_distribution<int> &grp_distribution,
                                      std::uniform_real_distribution<double> &pert_value_distribution)
     {
-        auto nb_middles_pert = std::max(middles_distribution(generator), 1);
+        auto nb_middles_pert = middles_distribution(generator) + 1 ;
         if (nb_middles_pert >= static_cast<int>(m_middles.size()))
             nb_middles_pert = static_cast<int>(m_middles.size()) - 1;
         spdlog::debug("{} middles are modified", nb_middles_pert);
@@ -337,7 +404,7 @@ namespace mat
             int i_grp = grp_distribution(generator);
             double pert_value = 1 + pert_value_distribution(generator) / 100.;
             // test if the value is not null 
-            if (getXsValue(middle_name, i_grp+1, reac_name) < 1e-8)
+            if (getXsValue(middle_name, i_grp+1, reac_name) < 1e-5)
             {
                 i -= 1 ; 
                 continue ; 

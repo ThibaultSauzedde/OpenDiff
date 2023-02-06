@@ -95,16 +95,22 @@ namespace perturbation
 
         EpGPT(vecd &x, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
               double albedo_x0, double albedo_xn);
+            
+        void solveReference(double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
+                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                            std::string acceleration);
 
-        void createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double power_W,
-                         double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
+        void createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double middles_distribution_p,
+                         double power_W, double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
                          double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
                          std::string acceleration);
 
         void calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
                              int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string acceleration);
 
-        std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver_pert);
+        std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver_pert, int basis_size=-1);
+
+        std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> highOrderPerturbation(T &solver_pert, double tol_eigen_value = 1e-5, int max_iter = 100, int basis_size=-1);
 
         auto &getBasis() { return m_basis; };
         auto &getImportances() { return m_gamma_star; };

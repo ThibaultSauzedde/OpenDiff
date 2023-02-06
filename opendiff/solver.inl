@@ -265,7 +265,7 @@ void Solver::initInnerSolver(T &inner_solver, double tol_inner, int inner_max_it
     inner_solver.setTolerance(tol_inner);
 }
 
-//specialization
+// specialization
 template <>
 inline void Solver::initInnerSolver(Eigen::SparseLU<SpMat> &inner_solver, double tol_inner, int inner_max_iter){};
 
@@ -303,7 +303,7 @@ Eigen::VectorXd Solver::solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::V
     return x;
 }
 
-//specialization
+// specialization
 template <>
 inline Eigen::VectorXd Solver::solveInner(Eigen::SparseLU<SpMat> &inner_solver, Eigen::VectorXd &b, Eigen::VectorBlock<Eigen::VectorXd> &x)
 {
@@ -351,20 +351,20 @@ inline Eigen::VectorXd Solver::solveInner(Eigen::SimplicialLDLT<SpMat> &inner_so
     return x;
 }
 
-inline void Solver::dump(std::string file_name)
+inline void Solver::dump(std::string file_name, std::string suffix)
 {
-    H5Easy::File file(file_name, H5Easy::File::Overwrite);
+    H5Easy::File file(file_name, H5Easy::File::OpenOrCreate);
 
-    H5Easy::dump(file, "/eigenvectors", m_eigen_vectors);
-    H5Easy::dump(file, "/eigenvalues", m_eigen_values);
+    H5Easy::dump(file, "/eigenvectors" + suffix, m_eigen_vectors, H5Easy::DumpMode::Overwrite);
+    H5Easy::dump(file, "/eigenvalues" + suffix, m_eigen_values, H5Easy::DumpMode::Overwrite);
 }
 
-inline void Solver::load(std::string file_name)
+inline void Solver::load(std::string file_name, std::string suffix)
 {
     H5Easy::File file(file_name, H5Easy::File::ReadOnly);
 
-    m_eigen_vectors = H5Easy::load<vecvec>(file, "/eigenvectors");
-    m_eigen_values = H5Easy::load<vecd>(file, "/eigenvalues");
+    m_eigen_vectors = H5Easy::load<vecvec>(file, "/eigenvectors" + suffix);
+    m_eigen_values = H5Easy::load<vecd>(file, "/eigenvalues" + suffix);
 }
 
 //-------------------------------------------------------------------------
@@ -446,9 +446,24 @@ inline void SolverFullPowerIt::solve(double tol, double tol_eigen_vectors, int n
     else if (acceleration == "chebyshev" && inner_solver == "GMRES" && inner_precond.empty())
         SolverFullPowerIt::solveChebyshev<Eigen::GMRES<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "GMRES" && inner_precond == "IncompleteLUT")
+        SolverFullPowerIt::solveChebyshev<Eigen::GMRES<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                             tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "DGMRES" && inner_precond.empty())
+        SolverFullPowerIt::solveChebyshev<Eigen::DGMRES<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "DGMRES" && inner_precond == "IncompleteLUT")
+        SolverFullPowerIt::solveChebyshev<Eigen::DGMRES<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                              tol_inner, outer_max_iter, inner_max_iter);
     else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
         SolverFullPowerIt::solveChebyshev<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                                                 tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "IDRS" && inner_precond.empty())
+        SolverFullPowerIt::solveChebyshev<Eigen::IDRS<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                              tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "IDRS" && inner_precond == "IncompleteLUT")
+        SolverFullPowerIt::solveChebyshev<Eigen::IDRS<SpMat, Eigen::IncompleteLUT<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                            tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "SparseLU")
         SolverFullPowerIt::solveUnaccelerated<Eigen::SparseLU<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                       tol_inner, outer_max_iter, inner_max_iter);
@@ -555,16 +570,14 @@ void SolverFullPowerIt::solveChebyshev(double tol, double tol_eigen_vectors, int
 
     float r_tol = 1e5;
     float r_tol_ev = 1e5;
+    float r_tol_ev_prec = 1e5;
+    float r_tol_ev_prec_acc = 1e5;
     float r_tol_ev2 = 1e5;
 
     int nb_free_iter = 4;
-    int nb_chebyshev_cycle_iter = 6;
+    int nb_chebyshev_cycle_min_iter = 4;
 
     Eigen::VectorXd v(v0);
-
-    double v_error = 1.;
-    double v_error_prec = 1.;
-    double v_error_prec_acc = 1.;
 
     if (v0_size == 0)
         v.setConstant(pblm_dim, 1.);
@@ -599,6 +612,7 @@ void SolverFullPowerIt::solveChebyshev(double tol, double tol_eigen_vectors, int
     // outer iteration
     int i = 1; // total
     int p = 1; // acc.
+    int n = 0; // outer
     while ((r_tol > tol || r_tol_ev > tol_eigen_vectors || r_tol_ev2 > tol_eigen_vectors) && i < outer_max_iter)
     {
         spdlog::debug("----------------------------------------------------");
@@ -606,19 +620,29 @@ void SolverFullPowerIt::solveChebyshev(double tol, double tol_eigen_vectors, int
         // inner iteration
         v = solveInner<T>(solver, b, v);
 
+        // eigen_value *= v.lpNorm<1>() / v_prec.lpNorm<1>();
+        eigen_value /= v.dot(m_K * v_prec) / v.dot(m_K * v);
+
+        // convergence computation
+        r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff());
+        r_tol_ev2 = (v - v_prec).norm() / std::sqrt(v.dot(v_prec));
+        r_tol = std::abs(eigen_value - eigen_value_prec);
+
+        // r_tol_ev2 = abs((v - v_prec).maxCoeff()) / eigen_value ;
+
         // free iteration
         if (i <= nb_free_iter || dominance_ratio < 0.5 || dominance_ratio > 1 || std::isnan(dominance_ratio))
         {
             spdlog::debug("Free outer iteration {}", i);
-            v_error = (m_K * v - m_K * v_prec).norm();
-            v_error_prec_acc = v_error;
-            dominance_ratio = v_error / v_error_prec;
+            r_tol_ev_prec_acc = r_tol_ev;
+            dominance_ratio = r_tol_ev / r_tol_ev_prec;
             spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
+            n++;
         }
         // chebyshev acc.
         else
         {
-            spdlog::debug("Cheb outer iteration {} (cycle {}/{})", i, p, nb_chebyshev_cycle_iter);
+            spdlog::debug("Cheb outer iteration {} (cycle {}/{})", i, p, nb_chebyshev_cycle_min_iter);
             if (p == 1) // first cycle
             {
                 alpha = 2 / (2 - dominance_ratio);
@@ -636,34 +660,53 @@ void SolverFullPowerIt::solveChebyshev(double tol, double tol_eigen_vectors, int
             spdlog::debug("beta = {}", beta);
 
             v = v_prec + alpha * (v - v_prec) + beta * (v_prec - v_prec_prec);
-            v_error = (m_K * v - m_K * v_prec).norm();
-
-            if (p == nb_chebyshev_cycle_iter) // end of the cycle
-            {
-                double error_ratio = v_error / v_error_prec_acc;
-                double gamma = std::cosh((p - 1) * std::acosh((2 - dominance_ratio) / dominance_ratio)) * error_ratio;
-                spdlog::debug("{}, {}, {}, {}, {}", dominance_ratio, v_error, v_error_prec_acc, error_ratio, gamma);
-                dominance_ratio *= (std::cosh(std::acosh(gamma) / (p - 1)) + 1) / 2.;
-                v_error_prec_acc = v_error;
-                p = 0;
-                spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
-            }
             p++;
         }
 
-        // eigen_value *= v.lpNorm<1>() / v_prec.lpNorm<1>();
-        eigen_value /= v.dot(m_K * v_prec) / v.dot(m_K * v);
+        if (p >= (nb_chebyshev_cycle_min_iter + 1)) // possible end of the acceleration cycle
+        {
+            double error_ratio = r_tol_ev / r_tol_ev_prec_acc;
+            double cp = std::cosh(p * std::acosh(2 / dominance_ratio - 1));
+
+            if (error_ratio < 1 / cp)
+            {
+                spdlog::debug("The dominance ratio does not have to be modifed, we continue the acceleration cycle");
+                nb_chebyshev_cycle_min_iter++;
+            }
+            else
+            {
+                spdlog::debug("We end the acceleration cycle");
+                if (error_ratio < 1)
+                    dominance_ratio *= (std::cosh(std::acosh(cp * error_ratio) / p) + 1) / 2.;
+                else
+                {
+                    spdlog::warn("error_ratio > 1, there is probably an error, we multiply the dominance ratio by 0.95!");
+                    dominance_ratio *= 0.95;
+                }
+                p = 1;
+                n++;
+                r_tol_ev_prec_acc = r_tol_ev;
+            }
+
+            // limitation of the rate of growth of the dominance ratio
+            if (n <= 6)
+                dominance_ratio = std::min(0.9, dominance_ratio);
+            else if (n <= 9)
+                dominance_ratio = std::min(0.95, dominance_ratio);
+            else if (n <= 12)
+                dominance_ratio = std::min(0.985, dominance_ratio);
+            else if (n > 12)
+                dominance_ratio = std::min(0.99, dominance_ratio);
+
+            spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
+        }
 
         // convergence computation
-        r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff()) / (2 * eigen_value);
-        r_tol = std::abs(eigen_value - eigen_value_prec);
-        r_tol_ev2 = v_error / eigen_value;
-        // r_tol_ev2 = abs((v - v_prec).maxCoeff()) / eigen_value ;
+        r_tol_ev_prec = r_tol_ev;
 
         eigen_value_prec = eigen_value;
         v_prec_prec = v_prec;
         v_prec = v;
-        v_error_prec = v_error;
         spdlog::debug("Eigen value = {:.5f}", eigen_value);
         spdlog::debug("Estimated error in outter iteration (eigen value): {:.2e}", r_tol);
         spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
@@ -1000,8 +1043,11 @@ inline void SolverCondPowerIt::solve(double tol, double tol_eigen_vectors, int n
         SolverCondPowerIt::solveUnaccelerated<Eigen::SimplicialLDLT<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                             tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "ConjugateGradient" && inner_precond.empty())
-        SolverCondPowerIt::solveUnaccelerated<Eigen::ConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+        SolverCondPowerIt::solveUnaccelerated<Eigen::ConjugateGradient<SpMat, Eigen::Lower|Eigen::Upper>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                                tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "ConjugateGradient" && inner_precond == "IncompleteCholesky")
+        SolverCondPowerIt::solveUnaccelerated<Eigen::ConjugateGradient<SpMat, Eigen::Lower|Eigen::Upper, Eigen::IncompleteCholesky<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+                                                                                                    tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
         SolverCondPowerIt::solveUnaccelerated<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                                            tol_inner, outer_max_iter, inner_max_iter);
@@ -1268,23 +1314,24 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     int v0_size = static_cast<int>(v0.size());
 
     float r_tol_ev = 1e5;
+    float r_tol_ev2_prec = 1e5;
+    float r_tol_ev2_prec_acc = 1e5;
     float r_tol_ev2 = 1e5;
 
+    int nb_free_iter = 4;
+    int nb_chebyshev_cycle_min_iter = 4;
+
     Eigen::VectorXd v(v0);
-    Eigen::VectorXd v_prec(v0);
-    Eigen::VectorXd v_prec_prec(v0);
 
     if (v0_size == 0)
-    {
         v.setConstant(pblm_dim, 1.);
-        v_prec.setConstant(pblm_dim, 1.);
-        v_prec_prec.setConstant(pblm_dim, 1.);
-    }
     else if (v0_size != pblm_dim)
         throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
+    else
+        v /= v.norm();
 
-    int nb_free_iter = 4;
-    int nb_chebyshev_cycle_iter = 9;
+    Eigen::VectorXd v_prec(v);
+    Eigen::VectorXd v_prec_prec(v);
 
     spdlog::debug("Tolerance in outter iteration (gamma): {:.2e}", tol);
     spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
@@ -1293,6 +1340,7 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
 
     double alpha;
     double beta;
+    double dominance_ratio = 0.4;
 
     T solver;
     initInnerSolver<T>(solver, tol_inner, inner_max_iter);
@@ -1305,15 +1353,13 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     double s_star_K_s = (m_eigen_vectors_star[0].dot(K * m_eigen_vectors[0]));
     // double s_star_K_s = (m_eigen_vectors[0].dot(m_eigen_vectors[0])); // also works
 
-    double dominance_ratio = m_dominance_ratio;
-    spdlog::debug("Dominance ratio : {}", dominance_ratio);
-    if (dominance_ratio > 1 || std::isnan(dominance_ratio))
-        dominance_ratio = 0.2; // arbitrary < 0.5 
-
     // outer iteration
     int i = 1; // total
     int p = 1; // acc.
-    while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter)
+    int n = 0; // outer
+
+    while (r_tol_ev2 > tol && i < outer_max_iter)
+    // while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter) // in pratice r_tol_ev almost never converge...
     {
         spdlog::debug("----------------------------------------------------");
         spdlog::debug("Outer iteration {}", i);
@@ -1321,22 +1367,23 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
         // inner iteration
         v = solveInner<T>(solver, b, v);
 
-        // decontamiation of gamma
-        // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
-        if (isAdjoint())
-            v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
-        else
-            v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
-
-        // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
+        // convergence computation
+        r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff());
+        r_tol_ev2 = (v - v_prec).norm() / std::sqrt(v.dot(v_prec));
 
         // free iteration
-        if (i <= nb_free_iter || dominance_ratio < 0.5)
+        if (i <= nb_free_iter || dominance_ratio < 0.5 || dominance_ratio > 1 || std::isnan(dominance_ratio))
+        {
             spdlog::debug("Free outer iteration {}", i);
+            r_tol_ev2_prec_acc = r_tol_ev2;
+            dominance_ratio = r_tol_ev2 / r_tol_ev2_prec;
+            spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
+            n++;
+        }
         // chebyshev acc.
         else
         {
-            spdlog::debug("Cheb outer iteration {} (cycle {}/{})", i, p, nb_chebyshev_cycle_iter);
+            spdlog::debug("Cheb outer iteration {} (cycle {}/{})", i, p, nb_chebyshev_cycle_min_iter);
             if (p == 1) // first cycle
             {
                 alpha = 2 / (2 - dominance_ratio);
@@ -1354,19 +1401,59 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
             spdlog::debug("beta = {}", beta);
 
             v = v_prec + alpha * (v - v_prec) + beta * (v_prec - v_prec_prec);
-
-            if (p == nb_chebyshev_cycle_iter) // end of the cycle
-                p = 0;
-
             p++;
         }
 
-        // convergence computation
-        r_tol_ev = ((v.array() / v_prec.array()).maxCoeff() - (v.array() / v_prec.array()).minCoeff());
-        r_tol_ev2 = (v - v_prec).norm();
+        if (p >= (nb_chebyshev_cycle_min_iter + 1)) // possible end of the acceleration cycle
+        {
+            double error_ratio = r_tol_ev2 / r_tol_ev2_prec_acc;
+            double cp = std::cosh(p * std::acosh(2 / dominance_ratio - 1));
 
+            if (error_ratio < 1 / cp)
+            {
+                spdlog::debug("The dominance ratio does not have to be modifed, we continue the acceleration cycle");
+                nb_chebyshev_cycle_min_iter++;
+            }
+            else
+            {
+                spdlog::debug("We end the acceleration cycle");
+                if (error_ratio < 1)
+                    dominance_ratio *= (std::cosh(std::acosh(cp * error_ratio) / p) + 1) / 2.;
+                else
+                {
+                    spdlog::warn("error_ratio >= 1, there is probably an error, we multiply the dominance ratio by 0.95!");
+                    dominance_ratio *= 0.95;
+                }
+                p = 1;
+                n++;
+                r_tol_ev2_prec_acc = r_tol_ev2;
+            }
+
+            // limitation of the rate of growth of the dominance ratio
+            if (n <= 6)
+                dominance_ratio = std::min(0.9, dominance_ratio);
+            else if (n <= 9)
+                dominance_ratio = std::min(0.95, dominance_ratio);
+            else if (n <= 12)
+                dominance_ratio = std::min(0.985, dominance_ratio);
+            else if (n > 12)
+                dominance_ratio = std::min(0.99, dominance_ratio);
+
+            spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
+        }
+
+        // decontamiation of gamma
+        // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
+        if (isAdjoint() && (i % 6))
+            v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+        else if (i % 6)
+            v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
+        // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
+
+        r_tol_ev2_prec = r_tol_ev2;
         v_prec_prec = v_prec;
         v_prec = v;
+
         spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
         spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
         i++;
@@ -1375,15 +1462,22 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     m_gamma = v;
     spdlog::debug("Number of outter iteration: {}", i);
 
+    // decontamiation of gamma
+    // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
+    if (isAdjoint())
+        v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+    else
+        v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
+
     spdlog::debug("Orthogonlity tests: ");
     if (isAdjoint())
     {
-        spdlog::debug("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]));
-        spdlog::debug("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]));
+        spdlog::debug("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
+        spdlog::debug("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
     }
     else
     {
-        spdlog::debug("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]));
-        spdlog::debug("Gamma Phi : {}", v.dot(m_eigen_vectors[0]));
+        spdlog::debug("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / v.dot(v));
+        spdlog::debug("Gamma Phi : {}", v.dot(m_eigen_vectors[0]) / v.dot(v));
     }
 }

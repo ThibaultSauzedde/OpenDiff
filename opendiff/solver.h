@@ -269,9 +269,9 @@ namespace solver
         template <class T>
         Eigen::VectorXd solveInner(T &inner_solver, Eigen::VectorXd &b, Eigen::VectorBlock<Eigen::VectorXd> &x);
 
-        void dump(std::string file_name);
+        void dump(std::string file_name, std::string suffix="");
 
-        void load(std::string file_name);
+        void load(std::string file_name, std::string suffix="");
     };
 
     template <class T>

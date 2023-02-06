@@ -16,8 +16,11 @@ DEBUG = bool(int(os.environ.get('DEBUG', 0)))
 
 if DEBUG:
     optimisation = "-O0"
+    os.environ['CFLAGS'] = os.environ['CFLAGS'] + " -g"  #because of pybinf way of addinf -g0
+    os.environ['CPPFLAGS'] = os.environ['CPPFLAGS'] + " -g" 
 else:
     optimisation = "-O3"
+    debug = "-g0"
 
 class my_build_ext(build_ext):
     def build_extensions(self):
@@ -40,6 +43,7 @@ class my_build_ext(build_ext):
                 if "-O2" in step[i]:
                     # O0 O1 O2 O3 Ofast
                     step[i] = step[i].replace("-O2", optimisation)
+
 
         build_ext.build_extensions(self)
 

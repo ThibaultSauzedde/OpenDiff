@@ -1,3 +1,17 @@
+inline vecd randomCoordPerturbations(vecd coord, std::default_random_engine &generator,
+                                     std::normal_distribution<double> &pert_value_distribution)
+{
+    if (coord.empty())
+        return coord;
+
+    for (int i{1}; i < static_cast<int>(coord.size()) - 1; ++i)
+    {
+        coord[i] *= pert_value_distribution(generator);
+    }
+
+    return coord;
+}
+
 template <typename T>
 bool checkBiOrthogonality(T &solver, T &solver_star, double max_eps, bool raise_error, bool remove)
 {
@@ -404,95 +418,225 @@ void EpGPT<T>::solveReference(double tol, double tol_eigen_vectors, const Eigen:
                         inner_solver, inner_precond, acceleration);
 }
 
+// template <class T>
+// void EpGPT<T>::createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double middles_distribution_p,
+//                            double power_W, double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
+//                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver,
+//                            std::string inner_precond, std::string acceleration)
+// {
+//     int nb_trial = 10;
+//     int nb_trial_succed = 0;
+//     double r_precision = 1e5;
+//     double r_precision_max_trial = 0.;
+//     double r_precision_theory = 1e5;
+
+//     m_solver.normPower(power_W);
+//     m_norm_vector = m_solver.getPowerNormVector();
+//     // m_solver.normVector(m_norm_vector, power_W);
+
+//     // complete the basis
+//     std::default_random_engine generator(std::chrono::system_clock::now().time_since_epoch().count());
+//     std::geometric_distribution<int> middles_distribution(middles_distribution_p); // 0.3-0.6 is ok
+//     std::uniform_int_distribution<int> grp_distribution(0, m_middles.getNbGroups() - 1);
+//     std::uniform_real_distribution<double> pert_value_distribution(-pert_value_max, +pert_value_max);
+//     while ((r_precision > precision) || (r_precision_theory > precision))
+//     {
+//         // perturbeb problem
+//         mat::Middles middles_pert = mat::Middles(m_middles);
+//         middles_pert.randomPerturbation(reactions, generator, middles_distribution,
+//                                         grp_distribution, pert_value_distribution);
+//         mat::Macrolib macrolib_pert = mat::Macrolib(middles_pert, m_geometry);
+//         T solver_i{};
+//         if (m_y.empty())
+//             solver_i = T(m_x, macrolib_pert,
+//                          m_albedos[0], m_albedos[1]);
+//         else if (m_z.empty())
+//             solver_i = T(m_x, m_y, macrolib_pert,
+//                          m_albedos[0], m_albedos[1],
+//                          m_albedos[2], m_albedos[3]);
+//         else
+//             solver_i = T(m_x, m_y, m_z, macrolib_pert,
+//                          m_albedos[0], m_albedos[1],
+//                          m_albedos[2], m_albedos[3],
+//                          m_albedos[4], m_albedos[5]);
+//         Eigen::VectorXd v0 = m_solver.getEigenVectors()[0];
+//         solver_i.solve(tol, tol_eigen_vectors, 1, v0, m_solver.getEigenValues()[0],
+//                        tol_inner, outer_max_iter, inner_max_iter,
+//                        inner_solver, inner_precond, acceleration);
+//         solver_i.normPower(power_W);
+
+//         Eigen::VectorXd delta_ev = solver_i.getEigenVectors()[0] - m_solver.getEigenVectors()[0];
+//         spdlog::info("Delta eigenvalue {},", 1e5 * (m_solver.getEigenValues()[0] - solver_i.getEigenValues()[0]) / (m_solver.getEigenValues()[0] * solver_i.getEigenValues()[0]));
+
+//         // basis tests
+//         Eigen::VectorXd delta_ev_recons(m_solver.getEigenVectors()[0].size());
+//         delta_ev_recons.setZero();
+//         for (auto k{0}; k < static_cast<int>(m_basis.size()); ++k)
+//         {
+//             double coeff = m_basis[k].dot(delta_ev);
+//             delta_ev_recons += coeff * m_basis[k];
+//         }
+//         r_precision = (delta_ev - delta_ev_recons).norm() / delta_ev.norm();
+
+//         spdlog::info("The reconstruction precision is {:.2e} with a basis size {}", r_precision, m_basis.size());
+
+//         // Gram–Schmidt_process
+//         if (10 * std::sqrt(2 / M_PI) * r_precision > precision)
+//         {
+//             Eigen::VectorXd u_i = delta_ev;
+//             for (int k{0}; k < static_cast<int>(m_basis.size()); ++k)
+//                 u_i -= m_basis[k].dot(u_i) * m_basis[k];
+
+//             u_i /= u_i.norm();
+//             m_basis.push_back(u_i);
+
+//             // handle theory precision
+//             nb_trial_succed = 0.;
+//             r_precision_max_trial = 0.;
+//         }
+//         // handle theory precision
+//         else
+//         {
+//             nb_trial_succed += 1;
+//             r_precision_max_trial = std::max(r_precision_max_trial, r_precision);
+//         }
+
+//         if (nb_trial_succed >= nb_trial)
+//         {
+//             r_precision_theory = 10 * std::sqrt(2 / M_PI) * r_precision_max_trial;
+//             nb_trial_succed = 0.;
+//             r_precision_max_trial = 0.;
+//         }
+//     }
+// }
+
 template <class T>
-void EpGPT<T>::createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double middles_distribution_p,
-                           double power_W, double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
+Eigen::VectorXd EpGPT<T>::calcSnapshot(std::default_random_engine &generator,
+                                       std::normal_distribution<double> &pert_xs_distribution,
+                                       std::normal_distribution<double> &pert_x_distribution,
+                                       std::normal_distribution<double> &pert_y_distribution,
+                                       std::normal_distribution<double> &pert_z_distribution,
+                                       double power_W, double tol, double tol_eigen_vectors, double ev0,
+                                       double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                                       std::string acceleration)
+{
+    // perturbeb problem
+    mat::Middles middles_pert = mat::Middles(m_middles);
+    middles_pert.randomPerturbation(generator, pert_xs_distribution);
+    mat::Macrolib macrolib_pert = mat::Macrolib(middles_pert, m_geometry);
+    T solver_i{};
+
+    vecd x = randomCoordPerturbations(m_x, generator, pert_x_distribution);
+    vecd y = randomCoordPerturbations(m_y, generator, pert_y_distribution);
+    vecd z = randomCoordPerturbations(m_z, generator, pert_z_distribution);
+
+    // for (double i : x)
+    //     std::cout << i << ",";
+    // std::cout << std::endl;
+
+    if (m_y.empty())
+        solver_i = T(x,
+                     macrolib_pert,
+                     m_albedos[0], m_albedos[1]);
+    else if (m_z.empty())
+        solver_i = T(x,
+                     y,
+                     macrolib_pert,
+                     m_albedos[0], m_albedos[1],
+                     m_albedos[2], m_albedos[3]);
+    else
+        solver_i = T(x,
+                     y,
+                     z,
+                     macrolib_pert,
+                     m_albedos[0], m_albedos[1],
+                     m_albedos[2], m_albedos[3],
+                     m_albedos[4], m_albedos[5]);
+
+    Eigen::VectorXd v0 = m_solver.getEigenVectors()[0];
+    solver_i.solve(tol, tol_eigen_vectors, 1, v0, m_solver.getEigenValues()[0],
+                   tol_inner, outer_max_iter, inner_max_iter,
+                   inner_solver, inner_precond, acceleration);
+    solver_i.normPower(power_W);
+
+    Eigen::VectorXd delta_ev = solver_i.getEigenVectors()[0] - m_solver.getEigenVectors()[0];
+    spdlog::info("Snapshot delta eigenvalue {},", 1e5 * (m_solver.getEigenValues()[0] - solver_i.getEigenValues()[0]) / (m_solver.getEigenValues()[0] * solver_i.getEigenValues()[0]));
+    return delta_ev;
+}
+
+template <class T>
+void EpGPT<T>::createBasis(double precision, double pert_xs_sigma,
+                           double pert_x_sigma, double pert_y_sigma, double pert_z_sigma,
+                           double power_W, double tol, double tol_eigen_vectors, double ev0,
                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver,
                            std::string inner_precond, std::string acceleration)
 {
-    int nb_trial = 10;
-    int nb_trial_succed = 0;
-    double r_precision = 1e5;
-    double r_precision_max_trial = 0.;
-    double r_precision_theory = 1e5;
+    const int nb_trial = 10;
 
     m_solver.normPower(power_W);
     m_norm_vector = m_solver.getPowerNormVector();
+    double ev_norm = m_solver.getEigenVectors()[0].norm();
     // m_solver.normVector(m_norm_vector, power_W);
 
     // complete the basis
     std::default_random_engine generator(std::chrono::system_clock::now().time_since_epoch().count());
-    std::geometric_distribution<int> middles_distribution(middles_distribution_p); // 0.3-0.6 is ok
-    std::uniform_int_distribution<int> grp_distribution(0, m_middles.getNbGroups() - 1);
-    std::uniform_real_distribution<double> pert_value_distribution(-pert_value_max, +pert_value_max);
-    while ((r_precision > precision) || (r_precision_theory > precision))
+    std::normal_distribution<double> pert_xs_distribution(1.0, pert_xs_sigma / 100.);
+    std::normal_distribution<double> pert_x_distribution(1.0, pert_x_sigma / 100.);
+    std::normal_distribution<double> pert_y_distribution(1.0, pert_y_sigma / 100.);
+    std::normal_distribution<double> pert_z_distribution(1.0, pert_z_sigma / 100.);
+
+    // create the first nb_trial vectors from simulation
+    std::array<Eigen::VectorXd, nb_trial> trials;
+    std::array<double, nb_trial> trials_norm;
+    for (auto i{0}; i < nb_trial; ++i)
     {
-        // perturbeb problem
-        mat::Middles middles_pert = mat::Middles(m_middles);
-        middles_pert.randomPerturbation(reactions, generator, middles_distribution,
-                                        grp_distribution, pert_value_distribution);
-        mat::Macrolib macrolib_pert = mat::Macrolib(middles_pert, m_geometry);
-        T solver_i{};
-        if (m_y.empty())
-            solver_i = T(m_x, macrolib_pert,
-                         m_albedos[0], m_albedos[1]);
-        else if (m_z.empty())
-            solver_i = T(m_x, m_y, macrolib_pert,
-                         m_albedos[0], m_albedos[1],
-                         m_albedos[2], m_albedos[3]);
-        else
-            solver_i = T(m_x, m_y, m_z, macrolib_pert,
-                         m_albedos[0], m_albedos[1],
-                         m_albedos[2], m_albedos[3],
-                         m_albedos[4], m_albedos[5]);
-        Eigen::VectorXd v0 = m_solver.getEigenVectors()[0];
-        solver_i.solve(tol, tol_eigen_vectors, 1, v0, m_solver.getEigenValues()[0],
-                       tol_inner, outer_max_iter, inner_max_iter,
-                       inner_solver, inner_precond, acceleration);
-        solver_i.normPower(power_W);
+        trials[i] = calcSnapshot(generator, pert_xs_distribution,
+                                 pert_x_distribution, pert_y_distribution, pert_z_distribution,
+                                 power_W,
+                                 tol, tol_eigen_vectors, ev0,
+                                 tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond,
+                                 acceleration);
+        trials_norm[i] = trials[i].norm() / ev_norm;
+    }
 
-        Eigen::VectorXd delta_ev = solver_i.getEigenVectors()[0] - m_solver.getEigenVectors()[0];
-        spdlog::info("Delta eigenvalue {},", 1e5 * (m_solver.getEigenValues()[0] - solver_i.getEigenValues()[0]) / (m_solver.getEigenValues()[0] * solver_i.getEigenValues()[0]));
+    int j = static_cast<int>(m_basis.size()) - 1;
+    while (*std::max_element(trials_norm.begin(), trials_norm.end()) > precision / (10 * std::sqrt(2 / M_PI)))
+    {
+        j++;
 
-        // basis tests
-        Eigen::VectorXd delta_ev_recons(m_solver.getEigenVectors()[0].size());
-        delta_ev_recons.setZero();
-        for (auto k{0}; k < static_cast<int>(m_basis.size()); ++k)
+        // Gram–Schmidt_process with the current element in trials (2nd time if j > nb_trial)
+        int i = j % nb_trial;
+        spdlog::info("Iteration {}, we modify the index {} in trials array", j, i);
+        for (int k{0}; k < static_cast<int>(m_basis.size()); ++k)
+            trials[i] -= m_basis[k].dot(trials[i]) * m_basis[k];
+
+        Eigen::VectorXd u_i = trials[i] / trials[i].norm();
+        m_basis.push_back(u_i);
+
+        // Replace the current element by a new snapshot
+        trials[i] = calcSnapshot(generator, pert_xs_distribution,
+                                 pert_x_distribution, pert_y_distribution, pert_z_distribution,
+                                 power_W,
+                                 tol, tol_eigen_vectors, ev0,
+                                 tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond,
+                                 acceleration);
+
+        // Gram–Schmidt_process with the new element
+        for (int k{0}; k < static_cast<int>(m_basis.size()); ++k)
+            trials[i] -= m_basis[k].dot(trials[i]) * m_basis[k];
+
+        // remove the part of the new vector in the trials
+        for (auto k{0}; k < nb_trial; ++k)
         {
-            double coeff = m_basis[k].dot(delta_ev);
-            delta_ev_recons += coeff * m_basis[k];
-        }
-        r_precision = (delta_ev - delta_ev_recons).norm() / delta_ev.norm();
+            if (k != i)
+                trials[k] -= m_basis.back().dot(trials[k]) * m_basis.back();
 
-        spdlog::info("The reconstruction precision is {:.2e} with a basis size {}", r_precision, m_basis.size());
-
-        // Gram–Schmidt_process
-        if (10 * std::sqrt(2 / M_PI) * r_precision > precision)
-        {
-            Eigen::VectorXd u_i = delta_ev;
-            for (int k{0}; k < static_cast<int>(m_basis.size()); ++k)
-                u_i -= m_basis[k].dot(u_i) * m_basis[k];
-
-            u_i /= u_i.norm();
-            m_basis.push_back(u_i);
-
-            // handle theory precision
-            nb_trial_succed = 0.;
-            r_precision_max_trial = 0.;
-        }
-        // handle theory precision
-        else
-        {
-            nb_trial_succed += 1;
-            r_precision_max_trial = std::max(r_precision_max_trial, r_precision);
+            trials_norm[k] = trials[k].norm() / ev_norm;
         }
 
-        if (nb_trial_succed >= nb_trial)
-        {
-            r_precision_theory = 10 * std::sqrt(2 / M_PI) * r_precision_max_trial;
-            nb_trial_succed = 0.;
-            r_precision_max_trial = 0.;
-        }
+        spdlog::info("Max trials norm = {} must be shorter than {} with a basis of size {}",
+                     *std::max_element(trials_norm.begin(), trials_norm.end()),
+                     precision / (10 * std::sqrt(2 / M_PI)), m_basis.size());
     }
 }
 

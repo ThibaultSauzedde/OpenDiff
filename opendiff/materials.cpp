@@ -414,6 +414,37 @@ namespace mat
         }
     }
 
+    void Middles::randomPerturbation(std::vector<std::string> reactions,
+                                     std::default_random_engine &generator,
+                                     std::normal_distribution<double> &pert_value_distribution)
+    {
+        for (const auto &[middle_name, mat_name] : m_middles)
+        {
+            for (std::string reac_name : reactions)
+            {
+                for (int i{0}; i < m_nb_groups; ++i)
+                {
+                    multXsValue(middle_name, i + 1, reac_name, pert_value_distribution(generator));
+                }
+            }
+        }
+    }
+
+    void Middles::randomPerturbation(std::default_random_engine &generator,
+                                     std::normal_distribution<double> &pert_value_distribution)
+    {
+        for (const auto &[middle_name, mat_name] : m_middles)
+        {
+            for (std::string reac_name : m_reac_names)
+            {
+                for (int i{0}; i < m_nb_groups; ++i)
+                {
+                    multXsValue(middle_name, i + 1, reac_name, pert_value_distribution(generator));
+                }
+            }
+        }
+    }
+
     void Middles::randomPerturbationPython(std::vector<std::string> reactions, double pert_value_max)
     {
         std::default_random_engine generator(std::chrono::system_clock::now().time_since_epoch().count());

@@ -4,6 +4,7 @@
 #include <tuple>
 #include <string>
 #include <vector>
+#include <array>
 #include <map>
 #include <random>
 #include <chrono>
@@ -24,6 +25,9 @@ namespace perturbation
     using Tensor0D = Eigen::Tensor<double, 0, Eigen::RowMajor>;
     using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
     using Tensor2D = Eigen::Tensor<double, 2, Eigen::RowMajor>;
+
+    vecd randomCoordPerturbations(vecd coord, std::default_random_engine &generator,
+                                  std::normal_distribution<double> &pert_value_distribution);
 
     template <typename T>
     void handleDegeneratedEigenvalues(T &solver, T &solver_star, double max_eps = 1e-6);
@@ -95,13 +99,28 @@ namespace perturbation
 
         EpGPT(vecd &x, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
               double albedo_x0, double albedo_xn);
-            
+
+        Eigen::VectorXd calcSnapshot(std::default_random_engine &generator,
+                                     std::normal_distribution<double> &pert_xs_distribution,
+                                     std::normal_distribution<double> &pert_x_distribution,
+                                     std::normal_distribution<double> &pert_y_distribution,
+                                     std::normal_distribution<double> &pert_z_distribution,
+                                     double power_W, double tol, double tol_eigen_vectors, double ev0,
+                                     double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                                     std::string acceleration);
+
         void solveReference(double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
                             double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
                             std::string acceleration);
 
-        void createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double middles_distribution_p,
-                         double power_W, double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
+        // void createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double middles_distribution_p,
+        //                  double power_W, double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
+        //                  double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+        //                  std::string acceleration);
+
+        void createBasis(double precision, double pert_xs_sigma,
+                         double pert_x_sigma, double pert_y_sigma, double pert_z_sigma,
+                         double power_W, double tol, double tol_eigen_vectors, double ev0,
                          double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
                          std::string acceleration);
 

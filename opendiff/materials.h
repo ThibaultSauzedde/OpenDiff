@@ -123,6 +123,14 @@ namespace mat
                                 std::geometric_distribution<int> &middles_distribution,
                                 std::uniform_int_distribution<int> &grp_distribution,
                                 std::uniform_real_distribution<double> &pert_value_distribution);
+
+        void randomPerturbation(std::vector<std::string> reactions,
+                                std::default_random_engine &generator,
+                                std::normal_distribution<double> &pert_value_distribution);
+
+        void randomPerturbation(std::default_random_engine &generator,
+                                std::normal_distribution<double> &pert_value_distribution);
+
         void randomPerturbationPython(std::vector<std::string> reactions, double pert_value_max);
     };
 

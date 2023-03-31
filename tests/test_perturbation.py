@@ -486,7 +486,7 @@ def test_first_order_gpt_1d(macrolib_1d_nmid, macrolib_1d_nmid_pert, datadir):
 
 def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, macrolib_1d_nmid_pert, datadir):
     solver.init_slepc()
-    set_log_level(log_level.warning)
+    set_log_level(log_level.info)
     all_mat, middles, isot_reac_names = xs_aiea3d
     materials = {mat_name: mat.Material(
         values, isot_reac_names) for mat_name, values in all_mat.items()}
@@ -504,9 +504,16 @@ def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, macrolib_1d_nmid_pert, datadir):
     epgpt_1d = pert.EpGPT(x_mesh, middles, geometry,
                           0., 0.)
     null_vect = []
-    epgpt_1d.createBasis(1e-5, ["D", "SIGA", "NU_SIGF", "CHI"], 10., 1e6,
-                         1e-6, 1e-5, null_vect, 1.,
-                         1e-5, 1000, 100, "SparseLU", "")
+
+    epgpt_1d.solveReference(1e-6, 1e-5, null_vect, 1.,
+                            1e-5, 1000, 100, "SparseLU", "", "")
+    # epgpt_1d.createBasis(1e-5, ["D", "SIGA", "NU_SIGF", "CHI"], 10., 1, 1e6,
+    #                      1e-6, 1e-5, null_vect, 1.,
+    #                      1e-5, 1000, 100, "SparseLU", "", "")
+    epgpt_1d.createBasis(1e-3, 0.5, 0.001, 0.001, 0.001, 1e6,
+                         1e-6, 1e-5, 1.,
+                         1e-5, 1000, 100, "SparseLU", "", "")
+
     basis = epgpt_1d.getBasis()
     for i in range(len(basis)):
         for j in range(len(basis)):
@@ -527,7 +534,7 @@ def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, macrolib_1d_nmid_pert, datadir):
     #     ax.plot(basis[i])
     # plt.show()
 
-    epgpt_1d.calcImportances(1e-5, [], 1e-5, 10000, 100, "SparseLU")
+    epgpt_1d.calcImportances(1e-5, [], 1e-5, 10000, 100, "SparseLU", "")
     importances = epgpt_1d.getImportances()
 
     # fig, ax = plt.subplots()
@@ -535,18 +542,15 @@ def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, macrolib_1d_nmid_pert, datadir):
     #     ax.plot(importances[i])
     # plt.show()
 
-    epgpt_1d.dump("./test_epgpt_1d.h5")
+    epgpt_1d.dump(str(datadir / "./test_epgpt_1d.h5"))
 
-    _, eigenvalue_recons, a = epgpt_1d.firstOrderPerturbation(s_recons)
+    _, eigenvalue_recons, a = epgpt_1d.firstOrderPerturbation(s_recons, -1)
     eigenvalue = epgpt_1d.getSolver().getEigenValues()[0]
     eigenvalue_pert = s_pert.getEigenValues()[0]
 
     print(1e5*(eigenvalue_pert-eigenvalue)/(eigenvalue*eigenvalue_pert))
     print(1e5*(eigenvalue_pert-eigenvalue_recons) /
           (eigenvalue_recons*eigenvalue_pert))
-
-    import ipdb
-    ipdb.set_trace()
 
     s_pert.normPower(1e6)
     epgpt_1d.getSolver().normPower(1e6)
@@ -569,6 +573,15 @@ def test_EpGPT_1d(xs_aiea3d, nmid_geom_1d, macrolib_1d_nmid_pert, datadir):
     ax.plot(x_mean, egvect_recons[1, 0, 0, :],
             "-.", label="recons - 2", color='blue')
 
+    ax.set_xlabel("x (cm")
+    ax.set_ylabel("$\phi$ (U.A.)")
+    ax.legend()
+
+    delta_egvect_recons = 100 * (egvect_recons-egvect_pert)/egvect_pert
+
+    fig, ax = plt.subplots(figsize=(15, 10))
+    ax.plot(x_mean, delta_egvect_recons[0, 0, 0, :],  color='red')
+    ax.plot(x_mean, delta_egvect_recons[1, 0, 0, :], color='red')
     ax.set_xlabel("x (cm")
     ax.set_ylabel("$\phi$ (U.A.)")
     ax.legend()

@@ -137,6 +137,12 @@ namespace perturbation
         auto &getSolver() { return m_solver; };
         auto &getSolverStar() { return m_solver_star; };
 
+        void setBasis(vecvec basis) { m_basis = basis; };
+        void setImportances(vecvec gamma_star) { m_gamma_star = gamma_star; };
+        void setN_star(std::vector<double> n_star) { m_N_star = n_star; };
+        void setSolver(T solver) { m_solver = solver; };
+        void setSolverStar(T solver_star) { m_solver_star = solver_star; };
+
         void dump(std::string file_name);
 
         void load(std::string file_name);

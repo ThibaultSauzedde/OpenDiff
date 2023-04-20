@@ -255,6 +255,11 @@ PYBIND11_MODULE(opendiff, m)
         .def("getN_star", &perturbation::EpGPT<solver::SolverFullPowerIt>::getN_star)
         .def("getSolver", &perturbation::EpGPT<solver::SolverFullPowerIt>::getSolver)
         .def("getSolverStar", &perturbation::EpGPT<solver::SolverFullPowerIt>::getSolverStar)
+        .def("setBasis", &perturbation::EpGPT<solver::SolverFullPowerIt>::setBasis)
+        .def("setImportances", &perturbation::EpGPT<solver::SolverFullPowerIt>::setImportances)
+        .def("setN_star", &perturbation::EpGPT<solver::SolverFullPowerIt>::setN_star)
+        .def("setSolver", &perturbation::EpGPT<solver::SolverFullPowerIt>::setSolver)
+        .def("setSolverStar", &perturbation::EpGPT<solver::SolverFullPowerIt>::setSolverStar)
         .def("dump", &perturbation::EpGPT<solver::SolverFullPowerIt>::dump)
         .def("load", &perturbation::EpGPT<solver::SolverFullPowerIt>::load);
 }

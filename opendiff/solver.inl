@@ -638,6 +638,7 @@ void SolverFullPowerIt::solveChebyshev(double tol, double tol_eigen_vectors, int
             dominance_ratio = r_tol_ev / r_tol_ev_prec;
             spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
             n++;
+            p = 1;
         }
         // chebyshev acc.
         else
@@ -1314,8 +1315,8 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     int v0_size = static_cast<int>(v0.size());
 
     float r_tol_ev = 1e5;
-    float r_tol_ev2_prec = 1e5;
-    float r_tol_ev2_prec_acc = 1e5;
+    float r_tol_ev_prec = 1e5;
+    float r_tol_ev_prec_acc = 1e5;
     float r_tol_ev2 = 1e5;
 
     int nb_free_iter = 4;
@@ -1358,7 +1359,7 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     int p = 1; // acc.
     int n = 0; // outer
 
-    while (r_tol_ev2 > tol && i < outer_max_iter)
+    while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter)
     // while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter) // in pratice r_tol_ev almost never converge...
     {
         spdlog::debug("----------------------------------------------------");
@@ -1375,10 +1376,11 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
         if (i <= nb_free_iter || dominance_ratio < 0.5 || dominance_ratio > 1 || std::isnan(dominance_ratio))
         {
             spdlog::debug("Free outer iteration {}", i);
-            r_tol_ev2_prec_acc = r_tol_ev2;
-            dominance_ratio = r_tol_ev2 / r_tol_ev2_prec;
+            r_tol_ev_prec_acc = r_tol_ev;
+            dominance_ratio = r_tol_ev / r_tol_ev_prec;
             spdlog::debug("Dominance ratio estimation = {}", dominance_ratio);
             n++;
+            p = 1;
         }
         // chebyshev acc.
         else
@@ -1406,7 +1408,7 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
 
         if (p >= (nb_chebyshev_cycle_min_iter + 1)) // possible end of the acceleration cycle
         {
-            double error_ratio = r_tol_ev2 / r_tol_ev2_prec_acc;
+            double error_ratio = r_tol_ev / r_tol_ev_prec_acc;
             double cp = std::cosh(p * std::acosh(2 / dominance_ratio - 1));
 
             if (error_ratio < 1 / cp)
@@ -1417,16 +1419,10 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
             else
             {
                 spdlog::debug("We end the acceleration cycle");
-                if (error_ratio < 1)
-                    dominance_ratio *= (std::cosh(std::acosh(cp * error_ratio) / p) + 1) / 2.;
-                else
-                {
-                    spdlog::warn("error_ratio >= 1, there is probably an error, we multiply the dominance ratio by 0.95!");
-                    dominance_ratio *= 0.95;
-                }
+                dominance_ratio *= (std::cosh(std::acosh(cp * error_ratio) / p) + 1) / 2.;
                 p = 1;
                 n++;
-                r_tol_ev2_prec_acc = r_tol_ev2;
+                r_tol_ev_prec_acc = r_tol_ev;
             }
 
             // limitation of the rate of growth of the dominance ratio
@@ -1450,7 +1446,7 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
             v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
         // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
 
-        r_tol_ev2_prec = r_tol_ev2;
+        r_tol_ev_prec = r_tol_ev;
         v_prec_prec = v_prec;
         v_prec = v;
 

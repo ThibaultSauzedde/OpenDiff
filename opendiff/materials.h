@@ -78,6 +78,9 @@ namespace mat
 
         void createIndependantMaterials();
 
+        std::vector<std::vector<std::vector<std::string>>> createIndependantMaterialsByRegion(
+            const std::vector<std::vector<std::vector<std::string>>> &geometry, std::vector<std::string> &ignore_middles);
+
         std::vector<std::vector<std::vector<std::string>>> createIndependantMiddlesByPlane(
             const std::vector<std::vector<std::vector<std::string>>> &geometry, std::vector<std::string> & ignore_middles, std::vector<int> & z_ids);
 

@@ -360,6 +360,9 @@ EpGPT<T>::EpGPT(vecd &x, vecd &y, vecd &z, mat::Middles &middles, const std::vec
                  albedo_x0, albedo_xn,
                  albedo_y0, albedo_yn,
                  albedo_z0, albedo_zn);
+
+    m_solver_star = T(m_solver);
+    m_solver_star.makeAdjoint();
 }
 
 template <class T>
@@ -378,6 +381,9 @@ EpGPT<T>::EpGPT(vecd &x, vecd &y, mat::Middles &middles, const std::vector<std::
     m_solver = T(x, y, macrolib,
                  albedo_x0, albedo_xn,
                  albedo_y0, albedo_yn);
+
+    m_solver_star = T(m_solver);
+    m_solver_star.makeAdjoint();
 }
 
 template <class T>
@@ -392,6 +398,9 @@ EpGPT<T>::EpGPT(vecd &x, mat::Middles &middles, const std::vector<std::vector<st
     mat::Macrolib macrolib = mat::Macrolib(middles, geometry);
     m_solver = T(x, macrolib,
                  albedo_x0, albedo_xn);
+
+    m_solver_star = T(m_solver);
+    m_solver_star.makeAdjoint();
 }
 
 template <class T>
@@ -411,8 +420,6 @@ void EpGPT<T>::solveReference(double tol, double tol_eigen_vectors, const Eigen:
                    tol_inner, outer_max_iter, inner_max_iter,
                    inner_solver, inner_precond, acceleration);
 
-    m_solver_star = T(m_solver);
-    m_solver_star.makeAdjoint();
     m_solver_star.solve(tol, tol_eigen_vectors, 1, v0, m_solver.getEigenValues()[0],
                         tol_inner, outer_max_iter, inner_max_iter,
                         inner_solver, inner_precond, acceleration);
@@ -596,6 +603,11 @@ void EpGPT<T>::createBasis(double precision, double pert_xs_sigma,
                                  tol, tol_eigen_vectors, ev0,
                                  tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond,
                                  acceleration);
+
+        // if the basis is not empty, we remove it in the trials
+        for (int k{0}; k < static_cast<int>(m_basis.size()); ++k)
+            trials[i] -= m_basis[k].dot(trials[i]) * m_basis[k];
+
         trials_norm[i] = trials[i].norm() / ev_norm;
     }
 

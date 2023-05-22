@@ -57,6 +57,7 @@ ParallelCompile("NPY_NUM_BUILD_JOBS",
 
 
 # todo: add petsc as optional, later??
+# spdlog + fmt as mandatories libraries 
 ext_modules = [
     Pybind11Extension("opendiff",
                       ['opendiff/opendiff.cpp', 'opendiff/materials.cpp',

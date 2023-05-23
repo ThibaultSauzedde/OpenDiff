@@ -398,6 +398,32 @@ namespace solver
         void makeAdjoint()
         {
             m_is_adjoint = !m_is_adjoint;
+
+            // transpose the scatering 2d vector
+            std::vector<std::vector<T>> trans_s(m_S[0].size(), std::vector<T>());
+            for (int g = 0; g < m_S.size(); g++)
+            {
+                for (int gp = 0; gp < m_S[g].size(); gp++)
+                {
+                    trans_s[gp].push_back(m_S[g][gp]);
+                }
+            }
+            m_S = trans_s; // <--- reassign here
+            std::reverse(m_S.begin(), m_S.end());
+            for (int g = 0; g < m_S.size(); g++)
+            {
+                std::reverse(m_S[g].begin(), m_S[g].end());
+            }
+
+
+            std::reverse(m_F.begin(), m_F.end());
+            std::reverse(m_chi.begin(), m_chi.end());
+            std::reverse(m_A.begin(), m_A.end());
+
+            std::vector<T> tmp;
+            tmp = m_F ;
+            m_F = m_chi ;
+            m_chi = tmp ; 
         };
 
         double getPhiStarMPhi(solver::Solver &solver_star, int i)
@@ -420,6 +446,7 @@ namespace solver
         void solveUnaccelerated(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                                 double tol_inner, int outer_max_iter, int inner_max_iter);
 
+        template <class T>
         void solveChebyshev(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                             double tol_inner, int outer_max_iter, int inner_max_iter);
     };

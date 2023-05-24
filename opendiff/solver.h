@@ -380,6 +380,10 @@ namespace solver
         std::vector<T> m_A{};
         std::vector<std::vector<T>> m_S{};
 
+        // we create the full operators too for the perturbations theories and fixed source problem 
+        T m_K{};
+        T m_M{};
+
     public:
         using Solver::Solver;
 
@@ -395,22 +399,52 @@ namespace solver
 
         const auto getFissionSource(Eigen::VectorXd &eigen_vector);
 
+
+        const auto &getK() const
+        {
+            return m_K;
+        };
+        const auto &getM() const
+        {
+            return m_M;
+        };
+
+        const auto &getA() const
+        {
+            return m_A;
+        };
+
+        const auto &getChi() const
+        {
+            return m_chi;
+        };
+
+        const auto &getF() const
+        {
+            return m_F;
+        };
+
+        const auto &getS() const
+        {
+            return m_S;
+        };
+
         void makeAdjoint()
         {
             m_is_adjoint = !m_is_adjoint;
 
             // transpose the scatering 2d vector
             std::vector<std::vector<T>> trans_s(m_S[0].size(), std::vector<T>());
-            for (int g = 0; g < m_S.size(); g++)
+            for (auto g = 0; g < m_S.size(); g++)
             {
-                for (int gp = 0; gp < m_S[g].size(); gp++)
+                for (auto gp = 0; gp < m_S[g].size(); gp++)
                 {
                     trans_s[gp].push_back(m_S[g][gp]);
                 }
             }
             m_S = trans_s; // <--- reassign here
             std::reverse(m_S.begin(), m_S.end());
-            for (int g = 0; g < m_S.size(); g++)
+            for (auto g = 0; g < m_S.size(); g++)
             {
                 std::reverse(m_S[g].begin(), m_S[g].end());
             }
@@ -424,12 +458,15 @@ namespace solver
             tmp = m_F ;
             m_F = m_chi ;
             m_chi = tmp ; 
+
+            m_M = m_M.adjoint();
+            m_K = m_K.adjoint();
         };
+
 
         double getPhiStarMPhi(solver::Solver &solver_star, int i)
         {
-            // todo: fill it
-            return 1.0;
+            return solver_star.getEigenVectors()[i].dot(m_M * m_eigen_vectors[i]);
         };
     };
 
@@ -475,6 +512,58 @@ namespace solver
         SolverFullFixedSource(const SolverFullFixedSource &copy) = default;
 
         SolverFullFixedSource(const SolverFull<SpMat> &solver, const SolverFull<SpMat> &solver_star, const Eigen::VectorXd &source);
+
+        void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                   std::string acceleration = "") override;
+
+        template <class T>
+        void solveUnaccelerated(double tol, const Eigen::VectorXd &v0,
+                                double tol_inner, int outer_max_iter, int inner_max_iter);
+
+        template <class T>
+        void solveChebyshev(double tol, const Eigen::VectorXd &v0,
+                            double tol_inner, int outer_max_iter, int inner_max_iter);
+
+        const auto &getGamma() const
+        {
+            return m_gamma;
+        };
+
+        const auto getGamma4D(int dim_x, int dim_y, int dim_z, int nb_groups) const
+        {
+            Eigen::TensorMap<Tensor4Dconst> a(getGamma().data(), nb_groups, dim_z, dim_y, dim_x);
+            return a;
+        };
+
+        const auto getGamma4D() const
+        {
+            auto nb_groups = m_macrolib.getNbGroups();
+            auto dim = m_macrolib.getDim();
+            auto dim_z = std::get<2>(dim), dim_y = std::get<1>(dim), dim_x = std::get<0>(dim);
+            return getGamma4D(dim_x, dim_y, dim_z, nb_groups);
+        };
+
+        const py::array_t<double> getGammaPython() const
+        {
+            auto gamma = getGamma4D();
+            return py::array_t<double, py::array::c_style>({gamma.dimension(0), gamma.dimension(1), gamma.dimension(2), gamma.dimension(3)},
+                                                           gamma.data());
+        };
+    };
+
+
+    class SolverCondFixedSource : public SolverCond<SpMat>
+    {
+    protected:
+        Eigen::VectorXd m_source{};
+        vecvec m_eigen_vectors_star{};
+        Eigen::VectorXd m_gamma{};
+
+    public:
+        SolverCondFixedSource(const SolverCondFixedSource &copy) = default;
+
+        SolverCondFixedSource(const SolverCond<SpMat> &solver, const SolverCond<SpMat> &solver_star, const Eigen::VectorXd &source);
 
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                    double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,

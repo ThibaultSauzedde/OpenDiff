@@ -54,7 +54,7 @@ namespace solver
 
         vecd m_eigen_values{};
         vecvec m_eigen_vectors{};
-        double m_dominance_ratio{0.7};
+        double m_dominance_ratio{0.4};
 
     public:
 
@@ -525,6 +525,10 @@ namespace solver
         void solveChebyshev(double tol, const Eigen::VectorXd &v0,
                             double tol_inner, int outer_max_iter, int inner_max_iter);
 
+        template <class T>
+        void solveChebyshevFixedDR(double tol, const Eigen::VectorXd &v0,
+                                     double tol_inner, int outer_max_iter, int inner_max_iter);
+
         const auto &getGamma() const
         {
             return m_gamma;
@@ -575,6 +579,10 @@ namespace solver
 
         template <class T>
         void solveChebyshev(double tol, const Eigen::VectorXd &v0,
+                            double tol_inner, int outer_max_iter, int inner_max_iter);
+
+        template <class T>
+        void solveChebyshevFixedDR(double tol, const Eigen::VectorXd &v0,
                             double tol_inner, int outer_max_iter, int inner_max_iter);
 
         const auto &getGamma() const

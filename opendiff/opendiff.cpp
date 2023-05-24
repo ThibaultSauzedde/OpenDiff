@@ -234,32 +234,57 @@ PYBIND11_MODULE(opendiff, m)
                                                         Eigen::VectorXd &, Eigen::VectorXd &,
                                                         Eigen::VectorXd &, Eigen::VectorXd &,
                                                         double, double, int, int,
-                                                        std::string, std::string, std::string>(&perturbation::firstOrderGPT<solver::SolverFull<SpMat>>));
+                                                        std::string, std::string, std::string>(&perturbation::firstOrderGPT<solver::SolverFull<SpMat>, solver::SolverFullFixedSource>));
     // operators.def("diff_diffusion_op_3d", py::overload_cast<vecd &, vecd &, vecd &, mat::Macrolib &,
     //                                                         double, double, double, double, double, double>(&operators::diff_diffusion_op<SpMat, vecd>));
     // &perturbation::firstOrderGPT<solver::SolverFull<SpMat>>);
 
-    py::class_<perturbation::EpGPT<solver::SolverFullPowerIt>>(perturbation, "EpGPT")
-        .def(py::init<const perturbation::EpGPT<solver::SolverFullPowerIt> &>())
+    py::class_<perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>>(perturbation, "EpGPT")
+        .def(py::init<const perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource> &>())
         .def(py::init<vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double, double, double, double, double>())
-        .def("createBasis", &perturbation::EpGPT<solver::SolverFullPowerIt>::createBasis)
-        .def("solveReference", &perturbation::EpGPT<solver::SolverFullPowerIt>::solveReference)
-        .def("calcImportances", &perturbation::EpGPT<solver::SolverFullPowerIt>::calcImportances)
-        .def("firstOrderPerturbation", &perturbation::EpGPT<solver::SolverFullPowerIt>::firstOrderPerturbation)
-        .def("highOrderPerturbation", &perturbation::EpGPT<solver::SolverFullPowerIt>::highOrderPerturbation,
+        .def("createBasis", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::createBasis)
+        .def("solveReference", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::solveReference)
+        .def("calcImportances", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::calcImportances)
+        .def("firstOrderPerturbation", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::firstOrderPerturbation)
+        .def("highOrderPerturbation", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::highOrderPerturbation,
              py::arg("solver_pert"), py::arg("tol_eigen_value") = 1e-5, py::arg("max_iter") = 100, py::arg("basis_size") = -1)
-        .def("getBasis", &perturbation::EpGPT<solver::SolverFullPowerIt>::getBasis)
-        .def("getImportances", &perturbation::EpGPT<solver::SolverFullPowerIt>::getImportances)
-        .def("getN_star", &perturbation::EpGPT<solver::SolverFullPowerIt>::getN_star)
-        .def("getSolver", &perturbation::EpGPT<solver::SolverFullPowerIt>::getSolver)
-        .def("getSolverStar", &perturbation::EpGPT<solver::SolverFullPowerIt>::getSolverStar)
-        .def("setBasis", &perturbation::EpGPT<solver::SolverFullPowerIt>::setBasis)
-        .def("setImportances", &perturbation::EpGPT<solver::SolverFullPowerIt>::setImportances)
-        .def("setN_star", &perturbation::EpGPT<solver::SolverFullPowerIt>::setN_star)
-        .def("setSolver", &perturbation::EpGPT<solver::SolverFullPowerIt>::setSolver)
-        .def("setSolverStar", &perturbation::EpGPT<solver::SolverFullPowerIt>::setSolverStar)
-        .def("dump", &perturbation::EpGPT<solver::SolverFullPowerIt>::dump)
-        .def("load", &perturbation::EpGPT<solver::SolverFullPowerIt>::load);
+        .def("getBasis", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getBasis)
+        .def("getImportances", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getImportances)
+        .def("getN_star", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getN_star)
+        .def("getSolver", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getSolver)
+        .def("getSolverStar", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getSolverStar)
+        .def("setBasis", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setBasis)
+        .def("setImportances", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setImportances)
+        .def("setN_star", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setN_star)
+        .def("setSolver", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setSolver)
+        .def("setSolverStar", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setSolverStar)
+        .def("dump", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::dump)
+        .def("load", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::load);
+
+    py::class_<perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>>(perturbation, "EpGPTCond")
+        .def(py::init<const perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource> &>())
+        .def(py::init<vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double>())
+        .def(py::init<vecd &, vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double, double, double>())
+        .def(py::init<vecd &, vecd &, vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double, double, double, double, double>())
+        .def("createBasis", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::createBasis)
+        .def("solveReference", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::solveReference)
+        .def("calcImportances", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::calcImportances)
+        .def("firstOrderPerturbation", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::firstOrderPerturbation)
+        .def("highOrderPerturbation", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::highOrderPerturbation,
+             py::arg("solver_pert"), py::arg("tol_eigen_value") = 1e-5, py::arg("max_iter") = 100, py::arg("basis_size") = -1)
+        .def("getBasis", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getBasis)
+        .def("getImportances", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getImportances)
+        .def("getN_star", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getN_star)
+        .def("getSolver", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getSolver)
+        .def("getSolverStar", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getSolverStar)
+        .def("setBasis", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setBasis)
+        .def("setImportances", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setImportances)
+        .def("setN_star", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setN_star)
+        .def("setSolver", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setSolver)
+        .def("setSolverStar", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setSolverStar)
+        .def("dump", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::dump)
+        .def("load", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::load);
+
 }

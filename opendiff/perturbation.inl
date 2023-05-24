@@ -267,7 +267,7 @@ std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPy
     return std::make_tuple(ev_recons, eval_recons, a_python);
 }
 
-template <typename T>
+template <typename T, typename F>
 std::tuple<double, Eigen::VectorXd> GPTAdjointImportance(const T &solver, const T &solver_star, Eigen::VectorXd &response, Eigen::VectorXd &norm,
                                                          double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
                                                          std::string inner_solver, std::string inner_precond, std::string acceleration)
@@ -275,7 +275,7 @@ std::tuple<double, Eigen::VectorXd> GPTAdjointImportance(const T &solver, const 
     auto eigen_vector = solver.getEigenVectors()[0];
     double N_star = response.dot(eigen_vector) / norm.dot(eigen_vector);
     Eigen::VectorXd source = response - N_star * norm;
-    auto solver_fixed_source_star = solver::SolverFullFixedSource(solver, solver_star, source);
+    auto solver_fixed_source_star = F(solver, solver_star, source);
     solver_fixed_source_star.makeAdjoint();
     auto v0 = Eigen::VectorXd();
     solver_fixed_source_star.solve(tol, tol, 1, v0, 1.,
@@ -317,7 +317,7 @@ double firstOrderGPT(const T &solver, const T &solver_star, const T &solver_pert
     return pert;
 }
 
-template <typename T>
+template <typename T, typename F>
 std::tuple<double, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solver_star,
                                                   const T &solver_pert,
                                                   Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
@@ -326,7 +326,7 @@ std::tuple<double, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solv
                                                   std::string inner_solver, std::string inner_precond, std::string acceleration)
 {
 
-    auto [N_star, gamma_star] = GPTAdjointImportance(solver, solver_star, response, norm,
+    auto [N_star, gamma_star] = GPTAdjointImportance<T, F>(solver, solver_star, response, norm,
                                                      tol, tol_inner, outer_max_iter, inner_max_iter,
                                                      inner_solver, inner_precond, acceleration);
     auto pert = firstOrderGPT(solver, solver_star, solver_pert,
@@ -340,8 +340,8 @@ std::tuple<double, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solv
 //
 // EpGPT
 //
-template <class T>
-EpGPT<T>::EpGPT(vecd &x, vecd &y, vecd &z, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+template <class T, typename F>
+EpGPT<T, F>::EpGPT(vecd &x, vecd &y, vecd &z, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
                 double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn)
 {
     m_x = x;
@@ -365,8 +365,8 @@ EpGPT<T>::EpGPT(vecd &x, vecd &y, vecd &z, mat::Middles &middles, const std::vec
     m_solver_star.makeAdjoint();
 }
 
-template <class T>
-EpGPT<T>::EpGPT(vecd &x, vecd &y, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+template <class T, typename F>
+EpGPT<T, F>::EpGPT(vecd &x, vecd &y, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
                 double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn)
 {
     m_x = x;
@@ -386,8 +386,8 @@ EpGPT<T>::EpGPT(vecd &x, vecd &y, mat::Middles &middles, const std::vector<std::
     m_solver_star.makeAdjoint();
 }
 
-template <class T>
-EpGPT<T>::EpGPT(vecd &x, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+template <class T, typename F>
+EpGPT<T, F>::EpGPT(vecd &x, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
                 double albedo_x0, double albedo_xn)
 {
     m_x = x;
@@ -403,16 +403,16 @@ EpGPT<T>::EpGPT(vecd &x, mat::Middles &middles, const std::vector<std::vector<st
     m_solver_star.makeAdjoint();
 }
 
-template <class T>
-void EpGPT<T>::clearBasis()
+template <class T, typename F>
+void EpGPT<T, F>::clearBasis()
 {
     m_basis.clear();
     m_gamma_star.clear();
     m_N_star.clear();
 }
 
-template <class T>
-void EpGPT<T>::solveReference(double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
+template <class T, typename F>
+void EpGPT<T, F>::solveReference(double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
                               double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver,
                               std::string inner_precond, std::string acceleration)
 {
@@ -426,7 +426,7 @@ void EpGPT<T>::solveReference(double tol, double tol_eigen_vectors, const Eigen:
 }
 
 // template <class T>
-// void EpGPT<T>::createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double middles_distribution_p,
+// void EpGPT<T, F>::createBasis(double precision, std::vector<std::string> reactions, double pert_value_max, double middles_distribution_p,
 //                            double power_W, double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
 //                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver,
 //                            std::string inner_precond, std::string acceleration)
@@ -517,8 +517,8 @@ void EpGPT<T>::solveReference(double tol, double tol_eigen_vectors, const Eigen:
 //     }
 // }
 
-template <class T>
-Eigen::VectorXd EpGPT<T>::calcSnapshot(std::default_random_engine &generator,
+template <class T, typename F>
+Eigen::VectorXd EpGPT<T, F>::calcSnapshot(std::default_random_engine &generator,
                                        std::normal_distribution<double> &pert_xs_distribution,
                                        std::normal_distribution<double> &pert_x_distribution,
                                        std::normal_distribution<double> &pert_y_distribution,
@@ -571,8 +571,8 @@ Eigen::VectorXd EpGPT<T>::calcSnapshot(std::default_random_engine &generator,
     return delta_ev;
 }
 
-template <class T>
-void EpGPT<T>::createBasis(double precision, double pert_xs_sigma,
+template <class T, typename F>
+void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
                            double pert_x_sigma, double pert_y_sigma, double pert_z_sigma,
                            double power_W, double tol, double tol_eigen_vectors, double ev0,
                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver,
@@ -652,15 +652,15 @@ void EpGPT<T>::createBasis(double precision, double pert_xs_sigma,
     }
 }
 
-template <class T>
-void EpGPT<T>::calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
+template <class T, typename F>
+void EpGPT<T, F>::calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
                                int outer_max_iter, int inner_max_iter,
                                std::string inner_solver, std::string acceleration)
 {
     for (auto k{0}; k < static_cast<int>(m_basis.size()); ++k)
     {
         // importance calc
-        auto [N_star, gamma_star] = GPTAdjointImportance(m_solver, m_solver_star, m_basis[k], m_norm_vector,
+        auto [N_star, gamma_star] = GPTAdjointImportance<T, F>(m_solver, m_solver_star, m_basis[k], m_norm_vector,
                                                          tol, tol_inner, outer_max_iter, inner_max_iter,
                                                          inner_solver, "", acceleration);
         m_gamma_star.push_back(gamma_star);
@@ -669,8 +669,8 @@ void EpGPT<T>::calcImportances(double tol, const Eigen::VectorXd &v0, double tol
     }
 }
 
-template <class T>
-std::tuple<Eigen::VectorXd, double, vecd> EpGPT<T>::firstOrderPerturbation(T &solver_pert, int basis_size)
+template <class T, typename F>
+std::tuple<Eigen::VectorXd, double, vecd> EpGPT<T, F>::firstOrderPerturbation(T &solver_pert, int basis_size)
 {
     auto K = m_solver.getK();
     auto M = m_solver.getM();
@@ -712,8 +712,8 @@ std::tuple<Eigen::VectorXd, double, vecd> EpGPT<T>::firstOrderPerturbation(T &so
     return std::make_tuple(ev_recons, eval_recons, a);
 }
 
-template <class T>
-std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> EpGPT<T>::highOrderPerturbation(T &solver_pert, double tol_eigen_value, int max_iter, int basis_size)
+template <class T, typename F>
+std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> EpGPT<T, F>::highOrderPerturbation(T &solver_pert, double tol_eigen_value, int max_iter, int basis_size)
 {
     auto K = m_solver.getK();
     auto M = m_solver.getM();
@@ -806,8 +806,8 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> EpGPT<T>::highOrderPerturba
     return std::make_tuple(ev_recons, eval_recons, beta);
 }
 
-template <class T>
-void EpGPT<T>::dump(std::string file_name)
+template <class T, typename F>
+void EpGPT<T, F>::dump(std::string file_name)
 {
     H5Easy::File file(file_name, H5Easy::File::OpenOrCreate);
 
@@ -820,8 +820,8 @@ void EpGPT<T>::dump(std::string file_name)
     m_solver_star.dump(file_name, "_star");
 }
 
-template <class T>
-void EpGPT<T>::load(std::string file_name)
+template <class T, typename F>
+void EpGPT<T, F>::load(std::string file_name)
 {
     H5Easy::File file(file_name, H5Easy::File::ReadOnly);
 

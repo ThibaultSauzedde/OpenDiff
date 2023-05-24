@@ -435,16 +435,16 @@ namespace solver
 
             // transpose the scatering 2d vector
             std::vector<std::vector<T>> trans_s(m_S[0].size(), std::vector<T>());
-            for (auto g = 0; g < m_S.size(); g++)
+            for (auto g = 0; g < static_cast<int>(m_S.size()); g++)
             {
-                for (auto gp = 0; gp < m_S[g].size(); gp++)
+                for (auto gp = 0; gp < static_cast<int>(m_S[g].size()); gp++)
                 {
                     trans_s[gp].push_back(m_S[g][gp]);
                 }
             }
             m_S = trans_s; // <--- reassign here
             std::reverse(m_S.begin(), m_S.end());
-            for (auto g = 0; g < m_S.size(); g++)
+            for (auto g = 0; g < static_cast<int>(m_S.size()); g++)
             {
                 std::reverse(m_S[g].begin(), m_S[g].end());
             }

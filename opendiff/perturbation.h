@@ -43,7 +43,7 @@ namespace perturbation
     template <typename T>
     std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPython(int order, T &solver, T &solver_star, T &solver_pert);
 
-    template <typename T>
+    template <typename T, typename F>
     std::tuple<double, Eigen::VectorXd> GPTAdjointImportance(const T &solver, const T &solver_star,
                                                              Eigen::VectorXd &response, Eigen::VectorXd &norm,
                                                              double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
@@ -56,14 +56,14 @@ namespace perturbation
                          double &N_star, Eigen::VectorXd &gamma_star);
 
     // the response are not ratio
-    template <typename T>
+    template <typename T, typename F>
     std::tuple<double, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solver_star,
                                                       const T &solver_pert,
                                                       Eigen::VectorXd &response, Eigen::VectorXd &response_pert,
                                                       Eigen::VectorXd &norm, Eigen::VectorXd &norm_pert,
                                                       double tol, double tol_inner, int outer_max_iter, int inner_max_iter,
                                                       std::string inner_solver, std::string inner_precond, std::string acceleration);
-    template <class T>
+    template <class T, typename F>
     class EpGPT
     {
     protected:

@@ -9,3 +9,4 @@ opendiff.cpython-38-x86_64-linux-gnu.so
 docs/examples/*
 gcc_options.txt
 .coverage
+docs/html/

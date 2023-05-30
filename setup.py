@@ -57,25 +57,18 @@ ParallelCompile("NPY_NUM_BUILD_JOBS",
 
 
 # todo: add petsc as optional, later??
-# spdlog + fmt as mandatories libraries 
+#    + fmt as mandatories libraries 
 ext_modules = [
     Pybind11Extension("opendiff",
                       ['opendiff/opendiff.cpp', 'opendiff/materials.cpp',
                        'opendiff/macrolib.cpp',],
                       define_macros=[('VERSION_INFO', __version__)],
                       include_dirs=[
-                          os.environ.get(
-                              'EIGEN_DIR', '/home/ts249161/dev/these/eigen'),
-                          os.environ.get('HIGHFIVE_DIR', '/home/ts249161/dev/these/HighFive')],
+                          os.environ.get('EIGEN_DIR', '/home/ts249161/dev/these/eigen'),
+                          os.environ.get('HIGHFIVE_DIR', '/home/ts249161/dev/these/HighFive'),
+                          os.environ.get('SPDLOG_DIR', '/home/ts249161/dev/these/spdlog'),
+                          os.environ.get('FMT_DIR', '/home/ts249161/dev/these/fmt')],
                       libraries=['petsc', 'slepc'],
-                      # ajouter macro pour slepc ou spectra -DNOM_MACRO
-                      #   extra_compile_args=["-O3"],
-                      #   library_dirs=[
-                      #       "/home/ts249161/anaconda3/envs/opendiff/x86_64-conda-linux-gnu/sysroot/lib/"],
-                      #   extra_link_args=[
-                      #       "-Wl,-rpath=/home/ts249161/anaconda3/envs/opendiff/x86_64-conda-linux-gnu/sysroot/lib/"],
-                      # extra_link_args=[
-                      #     "-Wl,--no-undefined"],
                       cxx_std=17),
 ]
 
@@ -91,6 +84,13 @@ setup(
     zip_safe=False,
     cmdclass={"build_ext": my_build_ext},
     python_requires=">=3.6",
+    install_requires=[
+        'numpy',
+        'matplotlib',
+        'scipy',
+        'pybind11',
+        'pytest',
+        'pytest-datadir'],
 )
 
 # for a complete example

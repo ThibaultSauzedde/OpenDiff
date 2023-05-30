@@ -15,6 +15,10 @@
 
 namespace mat
 {
+    /**
+     * @brief A class for storing a collection of isotopes associated with microscopic cross sections.
+     * 
+     */
     class Material
     {
     private:
@@ -25,10 +29,13 @@ namespace mat
 
         // we add the transfert section in it (always at the end), "SIGR" and "SIGF"
         std::set<std::string> m_reac_names{"D", "SIGA", "NU_SIGF", "CHI", "EFISS", "NU"};
-        std::set<std::string> m_isot_names{}; // the list of unique isot names
+        // the list of unique isot names
+        std::set<std::string> m_isot_names{}; 
 
+        // the list of isotope name and reaction name tuple
         std::vector<tuple_str> m_isot_reac_names{};
 
+        // the number of energy groups
         int m_nb_groups{-1};
 
         void createIndex(const std::vector<std::string> &isot_names, const std::vector<std::string> &reac_names);
@@ -40,12 +47,31 @@ namespace mat
     public:
         Material() = default;
         Material(const Material &copy) = default;
+        
+        /**
+         * @brief Construct a new Material object
+         * 
+         * @param values An array of double with the microscopic cross sections. 
+         * @param isot_names A vector with all the names of the isotopes of the values.
+         * @param reac_names A vector with all the names of the reactions of the values.
+         */
         Material(const Eigen::ArrayXXd &values, const std::vector<std::string> &isot_names, const std::vector<std::string> &reac_names);
 
+        /**
+         * @brief Construct a new Material object
+         * 
+         * @param values An array of double with the microscopic cross sections. 
+         * @param isot_reac_names A vector with all the names of the isotopes / reactions of the values.
+         */
         Material(const Eigen::ArrayXXd &values, const std::vector<tuple_str> &isot_reac_names);
 
+        /**
+         * @brief Get the microscopic cross sections values.
+         * 
+         * @return const auto&
+         */
         const auto &getValues() const { return m_values; };
-
+  
         const auto &getIndex() const { return m_isot_reac_names; };
         const int getIndex(const std::string &isot_name, const std::string &reac_name) const;
 

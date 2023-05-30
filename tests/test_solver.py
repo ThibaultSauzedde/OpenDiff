@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 import numpy.testing as npt
 import scipy
+import matplotlib.pyplot as plt
 
 import opendiff.solver as solver
 from opendiff import set_log_level, log_level
@@ -412,7 +413,6 @@ def test_SolverFullSlepc_3d(macrolib_3d, datadir):
 #Fixed source problem
 #-------------------------------------------------------------
 
-
 def test_solverFixedSource_1d(macrolib_1d, datadir):
     set_log_level(log_level.debug)
     macrolib, x_mesh = macrolib_1d
@@ -433,53 +433,96 @@ def test_solverFixedSource_1d(macrolib_1d, datadir):
 
     source_flat = np.ravel(source)
     s_fixed_source = solver.SolverFullFixedSource(s, s_star, source_flat)
-    s_fixed_source.solve(inner_solver="SparseLU", acceleration="chebyshev", outer_max_iter=20)
+    s_fixed_source.solve(inner_solver="SparseLU", acceleration="chebyshev")
     gamma = s_fixed_source.getGamma()
+    # s_fixed_source.dump("/home/ts249161/dev/these/openDiff/tests/test_solver/fixed_source_1d.hdf")
+    s_fixed_source_ref = solver.SolverFullFixedSource(s, s_star, source_flat)
+    s_fixed_source_ref.load(str(datadir / "fixed_source_1d.hdf"))
+    npt.assert_almost_equal(s_fixed_source.getGamma(), s_fixed_source_ref.getGamma(),
+                            decimal=4)
 
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots()
-    ax.plot(ev[0, 0, 0, :], label="ev0")
-    ax.plot(ev[1, 0, 0, :], label="ev1")
-    ax.plot(source[0, 0, 0, :], label="src0")
-    ax.plot(source[1, 0, 0, :], label="src1")
-    ax.plot(gamma[0, 0, 0, :], "--", label="gamma0")
-    ax.plot(gamma[1, 0, 0, :], "--", label="gamma1")
-    plt.legend()
+    # fig, ax = plt.subplots()
+    # ax.plot(ev[0, 0, 0, :], label="ev0")
+    # ax.plot(ev[1, 0, 0, :], label="ev1")
+    # ax.plot(source[0, 0, 0, :], label="src0")
+    # ax.plot(source[1, 0, 0, :], label="src1")
+    # ax.plot(gamma[0, 0, 0, :], "--", label="gamma0")
+    # ax.plot(gamma[1, 0, 0, :], "--", label="gamma1")
+    # plt.legend()
+    # plt.show()
+
+    # source = np.zeros_like(ev)
+    # source[1, 0, 0, 10:12] = 0.1
+    # source_flat = np.ravel(source)
+    # s_fixed_source = solver.SolverFullFixedSource(s, s_star, source_flat)
+    # s_fixed_source.makeAdjoint()
+    # s_fixed_source.solve(inner_solver="SparseLU", acceleration="chebyshev")
+    # gamma = s_fixed_source.getGamma()
+    # ev = s_star.getEigenVector(0)
+
+    # fig, ax = plt.subplots()
+    # ax.plot(ev[0, 0, 0, :], label="ev0")
+    # ax.plot(ev[1, 0, 0, :], label="ev1")
+    # ax.plot(source[0, 0, 0, :], label="src0")
+    # ax.plot(source[1, 0, 0, :], label="src1")
+    # ax.plot(gamma[0, 0, 0, :], "--", label="gamma0")
+    # ax.plot(gamma[1, 0, 0, :], "--", label="gamma1")
+    # plt.legend()
+    # plt.show()
+
+def test_solverFixedSourceCond_1d(macrolib_1d, datadir):
+    set_log_level(log_level.debug)
+    macrolib, x_mesh = macrolib_1d
+    ref_eigenvector = np.loadtxt(datadir / "ev_1d.txt")
+
+    ref_eigenvalue = 0.5513156
+    s = solver.SolverCondPowerIt(x_mesh, macrolib, -1., -1.)
+    s_star = solver.SolverCondPowerIt(s)
+    s_star.makeAdjoint()
+    s.solve(inner_solver="SparseLU", acceleration="chebyshev")
+    s_star.solve(inner_solver="SparseLU", acceleration="chebyshev")
+    ev = s.getEigenVector(0)
 
     source = np.zeros_like(ev)
-    source[1, 0, 0, 10:12] = 0.1
+    # source[0, 0, 0, 2:4] = 0.1
+    # source[0, 0, 0, -4:-2] = 0.1
+    source[0, 0, 0, 10:12] = 0.1
+
     source_flat = np.ravel(source)
-    s_fixed_source = solver.SolverFullFixedSource(s, s_star, source_flat)
-    s_fixed_source.makeAdjoint()
-    s_fixed_source.solve(inner_solver="SparseLU", acceleration="chebyshev", outer_max_iter=20)
+    s_fixed_source = solver.SolverCondFixedSource(s, s_star, source_flat)
+    s_fixed_source.solve(inner_solver="SparseLU", acceleration="chebyshev")
     gamma = s_fixed_source.getGamma()
-    ev = s_star.getEigenVector(0)
+    # s_fixed_source.dump("/home/ts249161/dev/these/openDiff/tests/test_solver/fixed_source_1d.hdf")
+    s_fixed_source_ref = solver.SolverCondFixedSource(s, s_star, source_flat)
+    s_fixed_source_ref.load(str(datadir / "fixed_source_1d.hdf"))
+    npt.assert_almost_equal(s_fixed_source.getGamma(), s_fixed_source_ref.getGamma(),
+                            decimal=4)
+    # import matplotlib.pyplot as plt
+    # fig, ax = plt.subplots()
+    # ax.plot(ev[0, 0, 0, :], label="ev0")
+    # ax.plot(ev[1, 0, 0, :], label="ev1")
+    # ax.plot(source[0, 0, 0, :], label="src0")
+    # ax.plot(source[1, 0, 0, :], label="src1")
+    # ax.plot(gamma[0, 0, 0, :], "--", label="gamma0")
+    # ax.plot(gamma[1, 0, 0, :], "--", label="gamma1")
+    # plt.legend()
+    # plt.show()
 
-    fig, ax = plt.subplots()
-    ax.plot(ev[0, 0, 0, :], label="ev0")
-    ax.plot(ev[1, 0, 0, :], label="ev1")
-    ax.plot(source[0, 0, 0, :], label="src0")
-    ax.plot(source[1, 0, 0, :], label="src1")
-    ax.plot(gamma[0, 0, 0, :], "--", label="gamma0")
-    ax.plot(gamma[1, 0, 0, :], "--", label="gamma1")
-    plt.legend()
-    plt.show()
-
-
-def test_cheb_acc():
-    dom_ratio = 0.988
-    print()
-    for p in range(1, 7):
-        if p == 1:
-            alpha = 2/(2-dom_ratio)
-            beta = 0.
-            print(alpha, beta)
-        else:
-            gamma = np.arccosh(2/dom_ratio-1)
-            alpha = 4/dom_ratio * np.cosh((p-1)*gamma) / np.cosh(p*gamma)
-            beta = np.cosh((p-2)*gamma) / np.cosh(p*gamma) 
-            beta_hebert = (1-dom_ratio/2)*alpha - 1
-            print(alpha, beta, beta_hebert, gamma)
+                            
+# def test_cheb_acc():
+#     dom_ratio = 0.988
+#     print()
+#     for p in range(1, 7):
+#         if p == 1:
+#             alpha = 2/(2-dom_ratio)
+#             beta = 0.
+#             print(alpha, beta)
+#         else:
+#             gamma = np.arccosh(2/dom_ratio-1)
+#             alpha = 4/dom_ratio * np.cosh((p-1)*gamma) / np.cosh(p*gamma)
+#             beta = np.cosh((p-2)*gamma) / np.cosh(p*gamma) 
+#             beta_hebert = (1-dom_ratio/2)*alpha - 1
+#             print(alpha, beta, beta_hebert, gamma)
 
     # for p in range(1, 7):
     #     if p == 1:
@@ -498,37 +541,199 @@ def test_cheb_acc():
     #         print(r0, r1, r2)
 
 
-@pytest.mark.integtest
-def test_solverPI_3d_refine_lu(macrolib_3d_refine):
-    solver.init_slepc()
-    set_log_level(log_level.debug)
-    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
-    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
-    s.solve(inner_solver="SparseLU", acceleration="chebyshev")
+##################################################
+# BiCGSTAB eigenvalue solver
+##################################################
 
 @pytest.mark.integtest
-def test_solverPI_3d_refine_BiCGSTAB(macrolib_3d_refine):
+def test_solverPI_3d_refine_BiCGSTAB_unac(macrolib_3d_refine, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
     s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
-    s.solve(inner_solver="BiCGSTAB")
+    s.solve(inner_solver="BiCGSTAB", acceleration="", inner_precond="", inner_max_iter=500, tol_inner=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    assert 461 == s.getNbOuterIterations()
+    # s.dump("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_bicgstab.hdf")
+    s_ref = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_ref.load(str(datadir / "ev_bicgstab.hdf"))
+    npt.assert_almost_equal(s_ref.getEigenVectors()[0], s.getEigenVectors()[0],
+                            decimal=4)
+    # add 2d plot 
+    # import grid_post_process as gpp
+    # gpp.plot_map2d(s_ref.getEigenVector(0)[1, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False)
+    # gpp.plot_map2d(s_ref.getEigenVector(0)[0, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False)
 
 @pytest.mark.integtest
-def test_solverPI_3d_refine_BiCGSTAB_lu(macrolib_3d_refine):
+def test_solverPI_3d_refine_BiCGSTAB_cheb(macrolib_3d_refine, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
     s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
-    s.solve(inner_solver="BiCGSTAB", inner_precond="IncompleteLUT")
+    s.solve(inner_solver="BiCGSTAB", acceleration="chebyshev", inner_precond="", inner_max_iter=500, tol_inner=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    assert 224 == s.getNbOuterIterations()
+    s_ref = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_ref.load(str(datadir / "ev_bicgstab.hdf"))
+    v_ref = s_ref.getEigenVectors()[0]
+    v = s.getEigenVectors()[0]
+    npt.assert_almost_equal(v_ref/np.linalg.norm(v_ref), v/np.linalg.norm(v),
+                            decimal=4)
 
 @pytest.mark.integtest
-def test_solverPI_3d_refine_GMRES(macrolib_3d_refine):
+def test_solverPI_3d_refine_BiCGSTAB_adjoint_cheb(macrolib_3d_refine, datadir):
     solver.init_slepc()
     set_log_level(log_level.debug)
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
     s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
-    s.solve(inner_solver="GMRES")
+    s.makeAdjoint()
+    s.solve(inner_solver="BiCGSTAB", acceleration="chebyshev", inner_precond="", inner_max_iter=500, tol_inner=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    assert 170 == s.getNbOuterIterations()
+    # s.dump("/home/ts249161/dev/these/openDiff/tests/test_solver/ev_bicgstab_adjoint.hdf")
+    s_ref = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_ref.load(str(datadir / "ev_bicgstab_adjoint.hdf"))
+    v_ref = s_ref.getEigenVectors()[0]
+    v = s.getEigenVectors()[0]
+    npt.assert_almost_equal(v_ref/np.linalg.norm(v_ref), v/np.linalg.norm(v),
+                            decimal=4)
+    # add 2d plot 
+    # import grid_post_process as gpp
+    # gpp.plot_map2d(s.getEigenVector(0)[1, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False)
+    # gpp.plot_map2d(s.getEigenVector(0)[0, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False)
+
+@pytest.mark.integtest
+def test_solverPICond_3d_refine_BiCGSTAB_unac(macrolib_3d_refine, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+    s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.solve(inner_solver="BiCGSTAB", acceleration="", inner_precond="", inner_max_iter=500, tol_inner=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    assert 408 == s.getNbOuterIterations()
+    s_ref = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_ref.load(str(datadir / "ev_bicgstab.hdf"))
+    v_ref = s_ref.getEigenVectors()[0]
+    v = s.getEigenVectors()[0]
+    npt.assert_almost_equal(v_ref/np.linalg.norm(v_ref), v/np.linalg.norm(v),
+                            decimal=4)
+@pytest.mark.integtest
+def test_solverPICond_3d_refine_BiCGSTAB_cheb(macrolib_3d_refine, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+    s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.solve(inner_solver="BiCGSTAB", acceleration="chebyshev", inner_precond="", inner_max_iter=500, tol_inner=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    assert 140 == s.getNbOuterIterations()
+    s_ref = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_ref.load(str(datadir / "ev_bicgstab.hdf"))
+    v_ref = s_ref.getEigenVectors()[0]
+    v = s.getEigenVectors()[0]
+    npt.assert_almost_equal(v_ref/np.linalg.norm(v_ref), v/np.linalg.norm(v),
+                            decimal=4)
+@pytest.mark.integtest
+def test_solverPICond_3d_refine_BiCGSTAB_adjoint_cheb(macrolib_3d_refine, datadir):
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+    s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.makeAdjoint()
+    s.solve(inner_solver="BiCGSTAB", acceleration="chebyshev", inner_precond="", inner_max_iter=500, tol_inner=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    assert 127 == s.getNbOuterIterations()
+    s_ref = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_ref.load(str(datadir / "ev_bicgstab_adjoint.hdf"))
+    v_ref = s_ref.getEigenVectors()[0]
+    v = s.getEigenVectors()[0]
+    npt.assert_almost_equal(v_ref/np.linalg.norm(v_ref), v/np.linalg.norm(v),
+                            decimal=4)
+
+##################################################
+# GMRES eigenvalue solver
+##################################################
+
+# @pytest.mark.integtest
+# def test_solverPI_3d_refine_GMRES_unac(macrolib_3d_refine):
+#     solver.init_slepc()
+#     set_log_level(log_level.debug)
+#     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+#     s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+#     s.solve(inner_solver="GMRES", acceleration="", outer_max_iter=250, inner_max_iter=100, tol_inner=1e-5)
+#     assert 1.02138 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+
+@pytest.mark.integtest
+def test_solverPI_3d_refine_GMRES_cheb(macrolib_3d_refine, datadir):
+    """ There is an issue with the GMRES solver 
+    """
+    solver.init_slepc()
+    set_log_level(log_level.debug)
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.solve(inner_solver="GMRES", acceleration="chebyshev", inner_max_iter=50, tol_inner=1e-6)
+    assert 1.02234 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    # s_ref = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    # s_ref.load(str(datadir / "ev_bicgstab.hdf"))
+    # v_ref = s_ref.getEigenVectors()[0]
+    # v = s.getEigenVectors()[0]
+    # npt.assert_almost_equal(v_ref/np.linalg.norm(v_ref), v/np.linalg.norm(v),
+    #                         decimal=4)
+    # # add 2d plot 
+    # import grid_post_process as gpp
+    # v = s.getEigenVector(0)
+    # v /= np.linalg.norm(v)
+    # v_ref = s_ref.getEigenVector(0)
+    # v_ref /= np.linalg.norm(v_ref)
+    # gpp.plot_map2d(v[0, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False, show=False)
+    # gpp.plot_map2d(v_ref[0, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False)
+
+    # gpp.plot_map2d(v[1, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False, show=False)
+    # gpp.plot_map2d(v_ref[1, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False)
+
+    # gpp.plot_map2d(100*(v[0, 30, :, :, ]/v_ref[0, 30, :, :, ]-1), [x_mesh, y_mesh], show_stat_data=False, show=False)
+    # gpp.plot_map2d(100*(v[1, 30, :, :, ]/v_ref[1, 30, :, :, ]-1), [x_mesh, y_mesh], show_stat_data=False)  
+
+# @pytest.mark.integtest
+# def test_solverPI_3d_refine_GMRES_adjoint_cheb(macrolib_3d_refine):
+#     solver.init_slepc()
+#     set_log_level(log_level.debug)
+#     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+#     s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+#     s.makeAdjoint()
+#     s.solve(inner_solver="GMRES", acceleration="chebyshev", inner_max_iter=500, tol_inner=1e-4)
+#     # assert 1.02138 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+#     assert 1.02419 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+
+# @pytest.mark.integtest
+# def test_solverPICond_3d_refine_GMRES_unac(macrolib_3d_refine):
+#     solver.init_slepc()
+#     set_log_level(log_level.debug)
+#     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+#     s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+#     s.solve(inner_solver="GMRES", acceleration="", inner_precond="IncompleteLUT", inner_max_iter=500, tol_inner=1e-6)
+
+# @pytest.mark.integtest
+# def test_solverPICond_3d_refine_GMRES_cheb(macrolib_3d_refine):
+#     solver.init_slepc()
+#     set_log_level(log_level.debug)
+#     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+#     s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+#     s.solve(inner_solver="GMRES", acceleration="chebyshev", inner_precond="", inner_max_iter=500)
+
+# @pytest.mark.integtest
+# def test_solverPICond_3d_refine_GMRES_adjoint_cheb(macrolib_3d_refine):
+#     solver.init_slepc()
+#     set_log_level(log_level.debug)
+#     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+#     s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+#     s.makeAdjoint()
+#     s.solve(inner_solver="GMRES", acceleration="chebyshev", inner_precond="", inner_max_iter=500)
+#     assert 1.02419 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+
+
+##################################################
+# Slepc eigenvalue solver
+##################################################
 
 @pytest.mark.integtest
 def test_SolverFullSlepc_3d_refine(macrolib_3d_refine):
@@ -537,6 +742,7 @@ def test_SolverFullSlepc_3d_refine(macrolib_3d_refine):
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
     s = solver.SolverFullSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(outer_max_iter=10000, inner_max_iter=200, tol=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
 
 @pytest.mark.integtest
 def test_SolverFullSlepc_3d_refine_arnoldi(macrolib_3d_refine):
@@ -545,6 +751,7 @@ def test_SolverFullSlepc_3d_refine_arnoldi(macrolib_3d_refine):
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
     s = solver.SolverFullSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(solver="arnoldi", outer_max_iter=10000, inner_max_iter=200, tol=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
 
 @pytest.mark.integtest
 def test_SolverFullSlepc_3d_refine_ibcgs(macrolib_3d_refine):
@@ -553,3 +760,138 @@ def test_SolverFullSlepc_3d_refine_ibcgs(macrolib_3d_refine):
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
     s = solver.SolverFullSlepc(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
     s.solve(inner_solver="ibcgs", outer_max_iter=10000, inner_max_iter=200, tol=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+
+
+##################################################
+# BiCGSTAB fixed source solver
+##################################################
+
+@pytest.mark.integtest
+def test_FixedSourceSolverPI_3d_refine_BiCGSTAB_unac(macrolib_3d_refine, datadir):
+    set_log_level(log_level.debug)
+    response = np.loadtxt(datadir / "source_aiea3d.txt")
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.load(str(datadir / "ev_bicgstab.hdf"))
+
+    s_star = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_star.makeAdjoint()
+    s_star.load(str(datadir / "ev_bicgstab_adjoint.hdf"))
+
+    eigen_vector = s.getEigenVectors()[0]
+    norm = s.getPowerNormVector()
+    N_star = response.dot(eigen_vector) / norm.dot(eigen_vector)
+    source = response - N_star * norm
+
+    s_fixed_source = solver.SolverFullFixedSource(s, s_star, source)
+    s_fixed_source.makeAdjoint()
+    s_fixed_source.solve(inner_solver="BiCGSTAB", acceleration="", inner_precond="", outer_max_iter=2000, inner_max_iter=500, tol_inner=1e-7)
+    gamma = s_fixed_source.getGamma()
+    # s_fixed_source.dump("/home/ts249161/dev/these/openDiff/tests/test_solver/gamma_bicgstab.hdf")
+
+    s_fixed_source_ref = solver.SolverFullFixedSource(s, s_star, source)
+    s_fixed_source_ref.load(str(datadir / "gamma_bicgstab.hdf"))
+    gamma_ref = s_fixed_source_ref.getGamma()
+    npt.assert_almost_equal(gamma_ref/np.linalg.norm(gamma_ref), gamma/np.linalg.norm(gamma),
+                            decimal=4)
+    assert 1088 == s_fixed_source.getNbOuterIterations()
+
+    # import grid_post_process as gpp
+    # gpp.plot_map2d(gamma[1, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False, show=False)
+    # gpp.plot_map2d(gamma[0, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False, show=False)
+    # gpp.plot_map2d(source.reshape(gamma.shape)[0, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False, show=False)
+    # gpp.plot_map2d(source.reshape(gamma.shape)[0, 30, :, :, ], [x_mesh, y_mesh], show_stat_data=False)
+
+
+@pytest.mark.integtest
+def test_FixedSourceSolverPI_3d_refine_BiCGSTAB_cheb(macrolib_3d_refine, datadir):
+    set_log_level(log_level.debug)
+    response = np.loadtxt(datadir / "source_aiea3d.txt")
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+
+    s = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.load(str(datadir / "ev_bicgstab.hdf"))
+
+    s_star = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_star.makeAdjoint()
+    s_star.load(str(datadir / "ev_bicgstab_adjoint.hdf"))
+
+    eigen_vector = s.getEigenVectors()[0]
+    norm = s.getPowerNormVector()
+    N_star = response.dot(eigen_vector) / norm.dot(eigen_vector)
+    source = response - N_star * norm
+
+    s_fixed_source = solver.SolverFullFixedSource(s, s_star, source)
+    s_fixed_source.makeAdjoint()
+    s_fixed_source.solve(inner_solver="BiCGSTAB", acceleration="chebyshev", inner_precond="", outer_max_iter=2000, inner_max_iter=500, tol_inner=1e-7)
+    gamma = s_fixed_source.getGamma()
+
+    s_fixed_source_ref = solver.SolverFullFixedSource(s, s_star, source)
+    s_fixed_source_ref.load(str(datadir / "gamma_bicgstab.hdf"))
+    gamma_ref = s_fixed_source_ref.getGamma()
+    npt.assert_almost_equal(gamma_ref/np.linalg.norm(gamma_ref), gamma/np.linalg.norm(gamma),
+                            decimal=4)
+    assert 405 == s_fixed_source.getNbOuterIterations()
+
+@pytest.mark.integtest
+def test_FixedSourceSolverCondPI_3d_refine_BiCGSTAB_unac(macrolib_3d_refine, datadir):
+    set_log_level(log_level.debug)
+    response = np.loadtxt(datadir / "source_aiea3d.txt")
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+
+    s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.load(str(datadir / "ev_bicgstab.hdf"))
+
+    s_star = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_star.makeAdjoint()
+    s_star.load(str(datadir / "ev_bicgstab_adjoint.hdf"))
+
+    eigen_vector = s.getEigenVectors()[0]
+    norm = s.getPowerNormVector()
+    N_star = response.dot(eigen_vector) / norm.dot(eigen_vector)
+    source = response - N_star * norm
+
+    s_fixed_source = solver.SolverCondFixedSource(s, s_star, source)
+    s_fixed_source.makeAdjoint()
+    s_fixed_source.solve(inner_solver="BiCGSTAB", acceleration="", inner_precond="", outer_max_iter=2000, inner_max_iter=500, tol_inner=1e-7)
+    gamma = s_fixed_source.getGamma()
+
+    s_fixed_source_ref = solver.SolverCondFixedSource(s, s_star, source)
+    s_fixed_source_ref.load(str(datadir / "gamma_bicgstab.hdf"))
+    gamma_ref = s_fixed_source_ref.getGamma()
+    npt.assert_almost_equal(gamma_ref/np.linalg.norm(gamma_ref), gamma/np.linalg.norm(gamma),
+                            decimal=4)
+    assert 911 == s_fixed_source.getNbOuterIterations()
+
+@pytest.mark.integtest
+def test_FixedSourceSolverCondPI_3d_refine_BiCGSTAB_cheb(macrolib_3d_refine, datadir):
+    set_log_level(log_level.debug)
+    response = np.loadtxt(datadir / "source_aiea3d.txt")
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+
+    s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.load(str(datadir / "ev_bicgstab.hdf"))
+
+    s_star = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_star.makeAdjoint()
+    s_star.load(str(datadir / "ev_bicgstab_adjoint.hdf"))
+
+    eigen_vector = s.getEigenVectors()[0]
+    norm = s.getPowerNormVector()
+    N_star = response.dot(eigen_vector) / norm.dot(eigen_vector)
+    source = response - N_star * norm
+
+    s_fixed_source = solver.SolverCondFixedSource(s, s_star, source)
+    s_fixed_source.makeAdjoint()
+    s_fixed_source.solve(inner_solver="BiCGSTAB", acceleration="chebyshev", inner_precond="", outer_max_iter=10000, inner_max_iter=500, tol_inner=1e-7)
+    gamma = s_fixed_source.getGamma()
+    # s_fixed_source.dump("/home/ts249161/dev/these/openDiff/tests/test_solver/gamma_bicgstab.hdf")
+
+    s_fixed_source_ref = solver.SolverCondFixedSource(s, s_star, source)
+    s_fixed_source_ref.load(str(datadir / "gamma_bicgstab.hdf"))
+    gamma_ref = s_fixed_source_ref.getGamma()
+    npt.assert_almost_equal(gamma_ref/np.linalg.norm(gamma_ref), gamma/np.linalg.norm(gamma),
+                            decimal=4)
+    assert 213 == s_fixed_source.getNbOuterIterations()

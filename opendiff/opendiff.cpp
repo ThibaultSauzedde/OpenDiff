@@ -159,6 +159,7 @@ PYBIND11_MODULE(opendiff, m)
         .def("getEigenVector", &solver::Solver::getEigenVectorPython)
         .def("getPower", &solver::Solver::getPowerPython)
         .def("getPowerNormVector", &solver::Solver::getPowerNormVector)
+        .def("getNbOuterIterations", &solver::Solver::getNbOuterIterations)
         .def("normVector", &solver::Solver::normVector)
         .def("normPower", &solver::Solver::normPowerPython,
              py::arg("power_W") = 1.)
@@ -213,15 +214,35 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("inner_precond") = "", py::arg("acceleration") = "");
 
     py::class_<solver::SolverFullFixedSource, solver::SolverFull<SpMat>>(solver, "SolverFullFixedSource")
+        // .def("dump", &solver::SolverFullFixedSource::dump, py::arg("file_name"), py::arg("suffix") = "")
+        // .def("load", &solver::SolverFullFixedSource::load, py::arg("file_name"), py::arg("suffix") = "")
         .def(py::init<const solver::SolverFullFixedSource &>())
         .def(py::init<const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &, const Eigen::VectorXd &>())
         .def("getGamma", &solver::SolverFullFixedSource::getGammaPython)
+        .def("dump", &solver::SolverFullFixedSource::dump, py::arg("file_name"), py::arg("suffix") = "")
+        .def("load", &solver::SolverFullFixedSource::load, py::arg("file_name"), py::arg("suffix") = "")
         .def("solve", &solver::SolverFullFixedSource::solve,
-             py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-5,
+             py::arg("tol") = 1e-5, py::arg("tol_eigen_vectors") = 1e-5,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "GMRES",
              py::arg("inner_precond") = "", py::arg("acceleration") = "chebyshev");
+
+    py::class_<solver::SolverCondFixedSource, solver::SolverCond<SpMat>>(solver, "SolverCondFixedSource")
+        // .def("dump", &solver::SolverCondFixedSource::dump, py::arg("file_name"), py::arg("suffix") = "")
+        // .def("load", &solver::SolverCondFixedSource::load, py::arg("file_name"), py::arg("suffix") = "")
+        .def(py::init<const solver::SolverCondFixedSource &>())
+        .def(py::init<const solver::SolverCond<SpMat> &, const solver::SolverCond<SpMat> &, const Eigen::VectorXd &>())
+        .def("getGamma", &solver::SolverCondFixedSource::getGammaPython)
+        .def("dump", &solver::SolverCondFixedSource::dump, py::arg("file_name"), py::arg("suffix") = "")
+        .def("load", &solver::SolverCondFixedSource::load, py::arg("file_name"), py::arg("suffix") = "")
+        .def("solve", &solver::SolverCondFixedSource::solve,
+             py::arg("tol") = 1e-5, py::arg("tol_eigen_vectors") = 1e-5,
+             py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
+             py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
+             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "GMRES",
+             py::arg("inner_precond") = "", py::arg("acceleration") = "chebyshev");
+
 
     py::module perturbation = m.def_submodule("perturbation", "A module for the perturbation.");
     perturbation.def("checkBiOrthogonality", &perturbation::checkBiOrthogonality<solver::SolverFull<SpMat>>,

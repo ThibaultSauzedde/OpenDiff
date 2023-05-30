@@ -56,6 +56,8 @@ namespace solver
         vecvec m_eigen_vectors{};
         double m_dominance_ratio{0.4};
 
+        int m_nb_outer_iterations = 0 ; 
+
     public:
 
         void setEigenValues(vecd eigen_values) //we want a copy 
@@ -224,6 +226,11 @@ namespace solver
             return py::array_t<double, py::array::c_style>({m_volumes.dimension(0)},
                                                            m_volumes.data());
         };
+
+        const auto getNbOuterIterations() const
+        {
+            return m_nb_outer_iterations;
+        }; 
 
         virtual void makeAdjoint() = 0;
         bool isAdjoint() { return m_is_adjoint; };
@@ -468,6 +475,17 @@ namespace solver
         {
             return solver_star.getEigenVectors()[i].dot(m_M * m_eigen_vectors[i]);
         };
+
+        void reverseEigenVectorEnergy(Eigen::VectorXd &eigen_vector){
+            auto dim = m_macrolib.getDim();
+            auto dim_xyz = std::get<2>(dim) * std::get<1>(dim) * std::get<0>(dim);
+            Eigen::VectorXd eigen_vector_tmp = eigen_vector; 
+            int nb_grp = m_macrolib.getNbGroups();
+            for (int g{0}; g < nb_grp; ++g)
+            {
+                eigen_vector(Eigen::seqN(dim_xyz * g, dim_xyz)) = eigen_vector_tmp(Eigen::seqN(dim_xyz * (nb_grp - g - 1), dim_xyz));
+            }
+        };
     };
 
     class SolverCondPowerIt : public SolverCond<SpMat>
@@ -554,6 +572,18 @@ namespace solver
             return py::array_t<double, py::array::c_style>({gamma.dimension(0), gamma.dimension(1), gamma.dimension(2), gamma.dimension(3)},
                                                            gamma.data());
         };
+
+        void dump(std::string file_name, std::string suffix)
+        {
+            H5Easy::File file(file_name, H5Easy::File::OpenOrCreate);
+            H5Easy::dump(file, "/gamma" + suffix, m_gamma, H5Easy::DumpMode::Overwrite);
+        };
+
+        void load(std::string file_name, std::string suffix)
+        {
+            H5Easy::File file(file_name, H5Easy::File::ReadOnly);
+            m_gamma = H5Easy::load<Eigen::VectorXd>(file, "/gamma" + suffix);
+        };
     };
 
 
@@ -609,6 +639,18 @@ namespace solver
             auto gamma = getGamma4D();
             return py::array_t<double, py::array::c_style>({gamma.dimension(0), gamma.dimension(1), gamma.dimension(2), gamma.dimension(3)},
                                                            gamma.data());
+        };
+
+        void dump(std::string file_name, std::string suffix)
+        {
+            H5Easy::File file(file_name, H5Easy::File::OpenOrCreate);
+            H5Easy::dump(file, "/gamma" + suffix, m_gamma, H5Easy::DumpMode::Overwrite);
+        };
+
+        void load(std::string file_name, std::string suffix)
+        {
+            H5Easy::File file(file_name, H5Easy::File::ReadOnly);
+            m_gamma = H5Easy::load<Eigen::VectorXd>(file, "/gamma" + suffix);
         };
     };
 

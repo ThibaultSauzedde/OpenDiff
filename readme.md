@@ -14,6 +14,8 @@ The condensed form is described in the following manual [DIF3D: A CODE TO SOLVE 
 
 The outer iterations can be accelerated by the chebychev methods.  
 
+This project is developed during my PhD thesis to test perturbations theories like [the modal expansion](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4427948) or [Exact-to-Precision Generalized Perturbation Theory](https://www.sciencedirect.com/science/article/pii/S0029549315002940?via%3Dihub). 
+
 ## Installation 
 
 To install OpenDiff, one can use pip : 

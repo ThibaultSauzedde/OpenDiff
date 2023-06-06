@@ -22,11 +22,15 @@ else:
     optimisation = "-O3"
     debug = "-g0"
 
+OPENMP = bool(int(os.environ.get('OPENMP', 0)))
+
 class my_build_ext(build_ext):
     def build_extensions(self):
         customize_compiler(self.compiler)
         self.compiler.compiler_so.remove("-Wstrict-prototypes")
         self.compiler.compiler_so.remove("-Wno-unused-result")
+        if OPENMP:
+            self.compiler.compiler_so.append("-fopenmp")
 
         # replace in compiler
         for step in [self.compiler.compiler_so, self.compiler.linker_so, self.compiler.compiler_cxx]:

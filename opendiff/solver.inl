@@ -1994,9 +1994,9 @@ inline void SolverCondFixedSource::solve(double tol, double tol_eigen_vectors, i
     if (acceleration == "chebyshev" && inner_solver == "SparseLU")
         SolverCondFixedSource::solveChebyshev<Eigen::SparseLU<SpMat>>(tol, v0,
                                                                       tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshev" && inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
-        SolverCondFixedSource::solveChebyshev<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, v0,
-                                                                                           tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshev" && inner_solver == "ConjugateGradient" && inner_precond.empty())
+        SolverCondFixedSource::solveChebyshev<Eigen::ConjugateGradient<SpMat>>(tol, v0,
+                                                                               tol_inner, outer_max_iter, inner_max_iter);
     else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond.empty())
         SolverCondFixedSource::solveChebyshev<Eigen::BiCGSTAB<SpMat>>(tol, v0,
                                                                       tol_inner, outer_max_iter, inner_max_iter);
@@ -2009,9 +2009,9 @@ inline void SolverCondFixedSource::solve(double tol, double tol_eigen_vectors, i
     else if (acceleration == "chebyshevFixedDR" && inner_solver == "SparseLU")
         SolverCondFixedSource::solveChebyshevFixedDR<Eigen::SparseLU<SpMat>>(tol, v0,
                                                                       tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
-        SolverCondFixedSource::solveChebyshevFixedDR<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, v0,
-                                                                                           tol_inner, outer_max_iter, inner_max_iter);
+    else if (acceleration == "chebyshevFixedDR" && inner_solver == "ConjugateGradient" && inner_precond.empty())
+        SolverCondFixedSource::solveChebyshevFixedDR<Eigen::ConjugateGradient<SpMat>>(tol, v0,
+                                                                                      tol_inner, outer_max_iter, inner_max_iter);
     else if (acceleration == "chebyshevFixedDR" && inner_solver == "BiCGSTAB" && inner_precond.empty())
         SolverCondFixedSource::solveChebyshevFixedDR<Eigen::BiCGSTAB<SpMat>>(tol, v0,
                                                                       tol_inner, outer_max_iter, inner_max_iter);
@@ -2024,9 +2024,9 @@ inline void SolverCondFixedSource::solve(double tol, double tol_eigen_vectors, i
     else if (inner_solver == "SparseLU")
         SolverCondFixedSource::solveUnaccelerated<Eigen::SparseLU<SpMat>>(tol, v0,
                                                                           tol_inner, outer_max_iter, inner_max_iter);
-    else if (inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
-        SolverCondFixedSource::solveUnaccelerated<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, v0,
-                                                                                               tol_inner, outer_max_iter, inner_max_iter);
+    else if (inner_solver == "ConjugateGradient" && inner_precond.empty())
+        SolverCondFixedSource::solveUnaccelerated<Eigen::ConjugateGradient<SpMat>>(tol, v0,
+                                                                                   tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "BiCGSTAB" && inner_precond.empty())
         SolverCondFixedSource::solveUnaccelerated<Eigen::BiCGSTAB<SpMat>>(tol, v0,
                                                                           tol_inner, outer_max_iter, inner_max_iter);

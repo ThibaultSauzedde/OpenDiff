@@ -142,6 +142,8 @@ PYBIND11_MODULE(opendiff, m)
     py::module solver = m.def_submodule("solver", "A module for the solver.");
     solver.def("init_slepc", solver::init_slepc);
     solver.def("end_slepc", SlepcFinalize);
+    solver.def("setNbThreads", Eigen::setNbThreads);
+    
 
     // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverPowerIt>();
     // py::implicitly_convertible<solver::Solver<SpMat>, solver::SolverSlepc>();

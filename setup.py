@@ -22,13 +22,15 @@ else:
     optimisation = "-O3"
     debug = "-g0"
 
-OPENMP = bool(int(os.environ.get('OPENMP', 0)))
+OPENMP = bool(int(os.environ.get('OPENMP', 1)))
 
 class my_build_ext(build_ext):
     def build_extensions(self):
         customize_compiler(self.compiler)
-        self.compiler.compiler_so.remove("-Wstrict-prototypes")
-        self.compiler.compiler_so.remove("-Wno-unused-result")
+        if "-Wstrict-prototypes" in self.compiler.compiler_so:
+            self.compiler.compiler_so.remove("-Wstrict-prototypes")
+        if "-Wno-unused-result" in self.compiler.compiler_so:
+            self.compiler.compiler_so.remove("-Wno-unused-result")
         if OPENMP:
             self.compiler.compiler_so.append("-fopenmp")
 
@@ -72,7 +74,7 @@ ext_modules = [
                           os.environ.get('HIGHFIVE_DIR', '/home/ts249161/dev/these/HighFive'),
                           os.environ.get('SPDLOG_DIR', '/home/ts249161/dev/these/spdlog'),
                           os.environ.get('FMT_DIR', '/home/ts249161/dev/these/fmt')],
-                      libraries=['petsc', 'slepc'],
+                      libraries=['petsc', 'slepc', 'fmt'],
                       cxx_std=17),
 ]
 

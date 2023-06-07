@@ -486,6 +486,13 @@ namespace solver
                 eigen_vector(Eigen::seqN(dim_xyz * g, dim_xyz)) = eigen_vector_tmp(Eigen::seqN(dim_xyz * (nb_grp - g - 1), dim_xyz));
             }
         };
+
+        Eigen::VectorXd reverseEigenVectorEnergyCopy(Eigen::VectorXd &eigen_vector)
+        {
+            Eigen::VectorXd eigen_vector_copy = eigen_vector ;
+            reverseEigenVectorEnergy(eigen_vector_copy);
+            return eigen_vector_copy;
+        };
     };
 
     class SolverCondPowerIt : public SolverCond<SpMat>

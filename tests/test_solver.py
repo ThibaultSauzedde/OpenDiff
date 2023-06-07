@@ -877,6 +877,7 @@ def test_FixedSourceSolverCondPI_3d_refine_BiCGSTAB_cheb(macrolib_3d_refine, dat
 @pytest.mark.integtest
 def test_FixedSourceSolverCondPI_3d_refine_ConjugateGradient_cheb(macrolib_3d_refine, datadir):
     solver.setNbThreads(10)
+    set_log_level(log_level.debug)
     response = np.loadtxt(datadir / "source_aiea3d.txt")
     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
 
@@ -891,7 +892,7 @@ def test_FixedSourceSolverCondPI_3d_refine_ConjugateGradient_cheb(macrolib_3d_re
     norm = s.getPowerNormVector()
     N_star = response.dot(eigen_vector) / norm.dot(eigen_vector)
     source = response - N_star * norm
-
+    
     s_fixed_source = solver.SolverCondFixedSource(s, s_star, source)
     s_fixed_source.makeAdjoint()
     s_fixed_source.solve(inner_solver="ConjugateGradient", acceleration="chebyshev", inner_precond="", outer_max_iter=10000, inner_max_iter=500, tol_inner=1e-7)
@@ -903,4 +904,38 @@ def test_FixedSourceSolverCondPI_3d_refine_ConjugateGradient_cheb(macrolib_3d_re
     gamma_ref = s_fixed_source_ref.getGamma()
     npt.assert_almost_equal(gamma_ref/np.linalg.norm(gamma_ref), gamma/np.linalg.norm(gamma),
                             decimal=4)
-    assert 164 == s_fixed_source.getNbOuterIterations()
+    assert 77 == s_fixed_source.getNbOuterIterations()
+
+
+# @pytest.mark.integtest
+# def test_FixedSourceSolverCondPI_3d_refine_normPower(macrolib_3d_refine, datadir):
+#     solver.setNbThreads(10)
+#     set_log_level(log_level.debug)
+#     response = np.loadtxt(datadir / "source_aiea3d.txt")
+#     macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+
+#     s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+#     s.load(str(datadir / "ev_bicgstab.hdf"))
+#     s.normPower(1e6)
+
+#     s_star = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+#     s_star.makeAdjoint()
+#     s_star.load(str(datadir / "ev_bicgstab_adjoint.hdf"))
+
+#     eigen_vector = s.getEigenVectors()[0]
+#     norm = s.getPowerNormVector()
+#     N_star = response.dot(eigen_vector) / norm.dot(eigen_vector)
+#     source = response - N_star * norm
+
+#     s_fixed_source = solver.SolverCondFixedSource(s, s_star, source)
+#     s_fixed_source.makeAdjoint()
+#     s_fixed_source.solve(inner_solver="ConjugateGradient", acceleration="chebyshev", inner_precond="", outer_max_iter=10000, inner_max_iter=500, tol_inner=1e-7)
+#     gamma = s_fixed_source.getGamma()
+#     # s_fixed_source.dump("/home/ts249161/dev/these/openDiff/tests/test_solver/gamma_bicgstab.hdf")
+
+#     s_fixed_source_ref = solver.SolverCondFixedSource(s, s_star, source)
+#     s_fixed_source_ref.load(str(datadir / "gamma_bicgstab.hdf"))
+#     gamma_ref = s_fixed_source_ref.getGamma()
+#     npt.assert_almost_equal(gamma_ref/np.linalg.norm(gamma_ref), gamma/np.linalg.norm(gamma),
+#                             decimal=4)
+#     assert 77 == s_fixed_source.getNbOuterIterations()

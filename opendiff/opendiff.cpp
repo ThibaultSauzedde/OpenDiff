@@ -128,6 +128,8 @@ PYBIND11_MODULE(opendiff, m)
         .def("getValues", &mat::Macrolib::getValuesPython)
         .def("getValues1D", &mat::Macrolib::getValues1DPython);
 
+    materials.def("get_geometry_roded", mat::get_geometry_roded);
+
     py::module operators = m.def_submodule("operators", "A module for the operators' creation.");
     operators.def("init_petsc", PetscInitializeNoArguments);
 
@@ -212,7 +214,7 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("tol") = 1e-6, py::arg("tol_eigen_vectors") = 1e-5,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
-             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "GMRES",
+             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "ConjugateGradient",
              py::arg("inner_precond") = "", py::arg("acceleration") = "");
 
     py::class_<solver::SolverFullFixedSource, solver::SolverFull<SpMat>>(solver, "SolverFullFixedSource")
@@ -227,7 +229,7 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("tol") = 1e-5, py::arg("tol_eigen_vectors") = 1e-5,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
-             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "GMRES",
+             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "BiCGSTAB",
              py::arg("inner_precond") = "", py::arg("acceleration") = "chebyshev");
 
     py::class_<solver::SolverCondFixedSource, solver::SolverCond<SpMat>>(solver, "SolverCondFixedSource")
@@ -242,7 +244,7 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("tol") = 1e-5, py::arg("tol_eigen_vectors") = 1e-5,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
-             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "GMRES",
+             py::arg("inner_max_iter") = 20, py::arg("inner_solver") = "ConjugateGradient",
              py::arg("inner_precond") = "", py::arg("acceleration") = "chebyshev");
 
 

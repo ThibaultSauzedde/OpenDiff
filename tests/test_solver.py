@@ -684,6 +684,24 @@ def test_solverPICond_3d_refine_ConjugateGradient_cheb(macrolib_3d_refine, datad
     v = s.getEigenVectors()[0]
     npt.assert_almost_equal(v_ref/np.linalg.norm(v_ref), v/np.linalg.norm(v),
                             decimal=4)
+
+@pytest.mark.integtest
+def test_solverPICond_3d_refine_ConjugateGradientChol_cheb(macrolib_3d_refine, datadir):
+    set_log_level(log_level.debug)
+    solver.setNbThreads(10)
+    macrolib, x_mesh, y_mesh, z_mesh = macrolib_3d_refine
+    s = solver.SolverCondPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s.solve(inner_solver="ConjugateGradient", acceleration="chebyshev", inner_precond="IncompleteCholesky",
+             inner_max_iter=500, tol_inner=1e-6)
+    assert 1.02142 == pytest.approx(s.getEigenValues()[0], abs=1e-4)
+    assert 75 == s.getNbOuterIterations()
+    s_ref = solver.SolverFullPowerIt(x_mesh, y_mesh, z_mesh, macrolib, 1., 0., 1., 0., 0., 0.)
+    s_ref.load(str(datadir / "ev_bicgstab.hdf"))
+    v_ref = s_ref.getEigenVectors()[0]
+    v = s.getEigenVectors()[0]
+    npt.assert_almost_equal(v_ref/np.linalg.norm(v_ref), v/np.linalg.norm(v),
+                            decimal=4)
+    
 @pytest.mark.integtest
 def test_solverPICond_3d_refine_ConjugateGradient_adjoint_cheb(macrolib_3d_refine, datadir):
     set_log_level(log_level.debug)
@@ -706,7 +724,7 @@ def test_solverPICond_3d_refine_ConjugateGradient_adjoint_cheb(macrolib_3d_refin
 
 ##################################################
 # Slepc eigenvalue solver
-##################################################
+    ##################################################
 
 @pytest.mark.integtest
 def test_SolverFullSlepc_3d_refine(macrolib_3d_refine):

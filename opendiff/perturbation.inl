@@ -654,15 +654,15 @@ void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
 
 template <class T, typename F>
 void EpGPT<T, F>::calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
-                               int outer_max_iter, int inner_max_iter,
-                               std::string inner_solver, std::string acceleration)
+                                  int outer_max_iter, int inner_max_iter,
+                                  std::string inner_solver, std::string inner_precond, std::string acceleration)
 {
     for (auto k{0}; k < static_cast<int>(m_basis.size()); ++k)
     {
         // importance calc
         auto [N_star, gamma_star] = GPTAdjointImportance<T, F>(m_solver, m_solver_star, m_basis[k], m_norm_vector,
-                                                         tol, tol_inner, outer_max_iter, inner_max_iter,
-                                                         inner_solver, "", acceleration);
+                                                               tol, tol_inner, outer_max_iter, inner_max_iter,
+                                                               inner_solver, inner_precond, acceleration);
         m_gamma_star.push_back(gamma_star);
         m_N_star.push_back(N_star);
         spdlog::warn("Importance {} / {} calculated", k + 1, m_basis.size());
@@ -701,6 +701,7 @@ std::tuple<Eigen::VectorXd, double, vecd> EpGPT<T, F>::firstOrderPerturbation(T 
 
         a.push_back(a_k);
         ev_recons -= a_k * m_basis[k];
+        spdlog::debug("Coefficient {} = {:.5e}", k, a_k);
     }
 
     eval_recons += eigen_vectors_star[0].dot(delta_L_ev) / (eigen_vectors_star[0].dot(M * eigen_vectors[0]));

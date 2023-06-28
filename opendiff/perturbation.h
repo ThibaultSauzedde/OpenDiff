@@ -125,7 +125,7 @@ namespace perturbation
                          std::string acceleration);
 
         void calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
-                             int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string acceleration);
+                             int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond, std::string acceleration);
 
         std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver_pert, int basis_size=-1);
 

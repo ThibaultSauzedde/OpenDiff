@@ -17,6 +17,15 @@ namespace mat
 {
     using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
     using Tensor3D = Eigen::Tensor<double, 3, Eigen::RowMajor>;
+    using vecd = std::vector<double>;
+
+    using geometry_vector = std::vector<std::vector<std::vector<std::string>>>; // make pairlist_t an alias
+    using geometry_tuple = std::tuple<double, double, double, double, double, double>;
+    using vector_tuple = std::vector<geometry_tuple>;
+    geometry_vector get_geometry_roded(geometry_vector geometry, vecd x, vecd y, vecd z,
+                                       vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
+                                       std::vector<double> control_rod_zpos);
+
     class Macrolib
     {
     private:
@@ -39,7 +48,7 @@ namespace mat
         Macrolib() = default;
         Macrolib(const Macrolib &copy) = default;
         Macrolib(const mat::Middles &middles, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry); // dim are z, y, x
-        Macrolib(const mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry); // python wrapping
+        Macrolib(const mat::Middles &middles, const geometry_vector &geometry); // python wrapping
 
         const Tensor1D &getValues1D(const int i_grp, const std::string &reac_name) const
         {

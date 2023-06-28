@@ -15,12 +15,80 @@ namespace mat
 {
     using Tensor3D = Eigen::Tensor<double, 3, Eigen::RowMajor>;
 
+    geometry_vector get_geometry_roded(geometry_vector geometry, vecd x, vecd y, vecd z,
+                                       vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
+                                       std::vector<double> control_rod_zpos)
+    {
+        if (control_rod_pos.size() != control_rod_zpos.size())
+            throw std::invalid_argument("The sizes of control_rod_pos and control_rod_zpos must be equals!");
+        
+        int nb_rod = static_cast<int>(control_rod_pos.size());
+        for (int i = 0; i < nb_rod; i++)
+        {
+            geometry_tuple rod_description = control_rod_pos[i];
+            double rod_zpos = control_rod_zpos[i];
+
+            // assert control_rod_pos is ok with x, y and z
+            double x1 = std::get<0>(rod_description);
+            double x2 = std::get<1>(rod_description);
+            double y1 = std::get<2>(rod_description);
+            double y2 = std::get<3>(rod_description);
+            double z1 = std::get<4>(rod_description);
+            double z2 = std::get<5>(rod_description);
+
+            int x1_index = std::distance(x.begin(), std::lower_bound(x.begin(), x.end(), x1 - 1e-5));
+            int x2_index = std::distance(x.begin(), std::lower_bound(x.begin(), x.end(), x2 - 1e-5));
+            int y1_index = std::distance(y.begin(), std::lower_bound(y.begin(), y.end(), y1 - 1e-5));
+            int y2_index = std::distance(y.begin(), std::lower_bound(y.begin(), y.end(), y2 - 1e-5));
+            int z1_index = std::distance(z.begin(), std::lower_bound(z.begin(), z.end(), z1 - 1e-5));
+            int z2_index = std::distance(z.begin(), std::lower_bound(z.begin(), z.end(), z2 - 1e-5));
+
+            if (x1_index == static_cast<int>(x.size()))
+                throw std::invalid_argument("x1 cannot is not in the range of x.");
+            if (x2_index == static_cast<int>(x.size()))
+                throw std::invalid_argument("x2 cannot is not in the range of x.");
+
+            if (y1_index == static_cast<int>(y.size()))
+                throw std::invalid_argument("y1 cannot is not in the range of y.");
+            if (y2_index == static_cast<int>(y.size()))
+                throw std::invalid_argument("y2 cannot is not in the range of y.");
+
+            if (z1_index == static_cast<int>(z.size()))
+                throw std::invalid_argument("z1 cannot is not in the range of z.");
+            if (z2_index == static_cast<int>(z.size()))
+                throw std::invalid_argument("z2 cannot is not in the range of z.");
+
+            int z_index = std::distance(z.begin(), std::lower_bound(z.begin(), z.end(), rod_zpos -1e-5));
+
+            if (z_index < z1_index || z1_index > z2_index)
+                throw std::invalid_argument("The rod position is not between z1 and z2.");
+            
+            for (int xi = x1_index; xi < x2_index; xi++)
+            {
+                for (int yi = y1_index; yi < y2_index; yi++)
+                {
+                    for (int zi = z1_index; zi < z2_index; zi++)
+                    {
+                        if (zi < z_index)
+                            geometry[zi][yi][zi] = unroded_middle;
+                        else
+                            geometry[zi][yi][zi] = rod_middle;
+                    }
+                }
+            }
+        }
+    
+    return geometry;
+
+
+    }
+
     Macrolib::Macrolib(const mat::Middles &middles, const Eigen::Tensor<std::string, 3, Eigen::RowMajor> &geometry)
     {
         setup(middles, geometry);
     }
 
-    Macrolib::Macrolib(const mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry)
+    Macrolib::Macrolib(const mat::Middles &middles, const geometry_vector &geometry)
     {
         //copy of the geometry in a tensor, it does not cost that much :)
 

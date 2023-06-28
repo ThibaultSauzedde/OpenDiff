@@ -319,6 +319,9 @@ def get_3d_geom(nb_div_pmat_x=1, nb_div_pmat_y=1, z_mesh=None):
 
     return pblm, x_mesh, y_mesh, z_mesh
 
+@pytest.fixture
+def geom_3d(nb_div_pmat_x=2, nb_div_pmat_y=2, z_mesh=None):
+    return get_3d_geom(nb_div_pmat_x=nb_div_pmat_x, nb_div_pmat_y=nb_div_pmat_y, z_mesh=z_mesh)
 
 @pytest.fixture
 def macrolib_3d(xs_aiea3d):

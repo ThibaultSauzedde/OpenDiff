@@ -1096,6 +1096,9 @@ inline void SolverCondPowerIt::solve(double tol, double tol_eigen_vectors, int n
     else if (acceleration == "chebyshev" && inner_solver == "ConjugateGradient" && inner_precond == "IncompleteCholesky")
         SolverCondPowerIt::solveChebyshev<Eigen::ConjugateGradient<SpMat, Eigen::Lower | Eigen::Upper, Eigen::IncompleteCholesky<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                                                                                            tol_inner, outer_max_iter, inner_max_iter);
+    // else if (acceleration == "chebyshev" && inner_solver == "ConjugateGradient" && inner_precond == "SSOR")
+    //     SolverCondPowerIt::solveChebyshev<Eigen::ConjugateGradient<SpMat, Eigen::Lower | Eigen::Upper, Eigen::SSORPreconditioner<double>>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
+    //                                                                                                                                        tol_inner, outer_max_iter, inner_max_iter);
     else if (acceleration == "chebyshev" && inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
         SolverCondPowerIt::solveChebyshev<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, tol_eigen_vectors, nb_eigen_values, v0, ev0,
                                                                                        tol_inner, outer_max_iter, inner_max_iter);
@@ -1593,7 +1596,7 @@ void SolverFullFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
     spdlog::info("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
     spdlog::info("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
 
-    spdlog::info("Orthogonlity tests: ");
+    spdlog::info("Orthogonality tests: ");
     if (isAdjoint())
     {
         spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
@@ -1744,7 +1747,7 @@ void SolverFullFixedSource::solveChebyshevFixedDR(double tol, const Eigen::Vecto
     m_gamma = v;
     m_nb_outer_iterations = i ; 
 
-    spdlog::debug("Orthogonlity tests: ");
+    spdlog::debug("Orthogonality tests: ");
     if (isAdjoint())
     {
         spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
@@ -1948,7 +1951,7 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     m_gamma = v;
     m_nb_outer_iterations = i ; 
 
-    spdlog::debug("Orthogonlity tests: ");
+    spdlog::debug("Orthogonality tests: ");
     if (isAdjoint())
     {
         spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
@@ -2164,7 +2167,7 @@ void SolverCondFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
     spdlog::info("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
     spdlog::info("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
 
-    spdlog::info("Orthogonlity tests: ");
+    spdlog::info("Orthogonality tests: ");
     if (isAdjoint())
     {
         spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
@@ -2280,7 +2283,7 @@ void SolverCondFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
         // decontamination of gamma
         // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
         // todo: make the decontamination with the sub matrices 
-        if (isAdjoint() && i < 50)
+        if (isAdjoint())
            {
             Eigen::VectorXd v_rev = reverseEigenVectorEnergyCopy(v);
             psi -= (v_rev.dot(K_ev)) / s_star_K_s * psi_v;
@@ -2353,6 +2356,9 @@ void SolverCondFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
                 nb_chebyshev_cycle_min_iter = 4;
                 f = 1;
                 nb_free_iter++;
+
+                if (i > 500) // there is probably an issue with the acceleration --> only free iterations !
+                    nb_free_iter = outer_max_iter;
             }
         }
 
@@ -2365,6 +2371,23 @@ void SolverCondFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
             dominance_ratio = std::min(0.985, dominance_ratio);
         else
             dominance_ratio = std::min(0.99, dominance_ratio);
+
+        // the inner iteration are maybe not well converged
+        for (int g{0}; g < m_macrolib.getNbGroups(); ++g)
+        {
+            if (i == 100) 
+                initInnerSolver<T>(solvers[g], tol_inner/5., inner_max_iter*2);
+            else if (i == 200)
+                initInnerSolver<T>(solvers[g], tol_inner/10., inner_max_iter*2);
+            else if (i == 300)
+                initInnerSolver<T>(solvers[g], tol_inner/50., inner_max_iter*3);
+            else if (i == 400)
+                initInnerSolver<T>(solvers[g], tol_inner/100., inner_max_iter*4);
+            else if (i == 500)
+                initInnerSolver<T>(solvers[g], tol_inner/500., inner_max_iter*5);
+            else if (i == 1000)
+                initInnerSolver<T>(solvers[g], tol_inner/1000., inner_max_iter*5);
+        }
         
 
         spdlog::debug("Dominance ratio used = {}", dominance_ratio);
@@ -2401,11 +2424,13 @@ void SolverCondFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     m_gamma = v;
     m_nb_outer_iterations = i ; 
 
-    spdlog::debug("Orthogonlity tests: ");
+    spdlog::debug("Orthogonality tests: ");
     if (isAdjoint())
     {
-        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
-        spdlog::info("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
+        spdlog::info("Gamma* K Phi / v v: {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
+        spdlog::info("Gamma* K Phi / Phi Phi: {}", v.dot(K * m_eigen_vectors[0]) / m_eigen_vectors[0].dot(m_eigen_vectors[0]));
+        spdlog::info("Gamma* Phi* / v v: {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
+        spdlog::info("Gamma* Phi* / Phi* Phi*: {}", v.dot(m_eigen_vectors_star[0]) / m_eigen_vectors_star[0].dot(m_eigen_vectors_star[0]));
     }
     else
     {
@@ -2587,7 +2612,7 @@ void SolverCondFixedSource::solveChebyshevFixedDR(double tol, const Eigen::Vecto
     m_gamma = v;
     m_nb_outer_iterations = i ; 
 
-    spdlog::debug("Orthogonlity tests: ");
+    spdlog::debug("Orthogonality tests: ");
     if (isAdjoint())
     {
         spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));

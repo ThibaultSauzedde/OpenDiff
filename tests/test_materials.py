@@ -329,3 +329,17 @@ def test_macrolib_3d(macrolib_3d):
         2, 'NU_SIGF'), np.array(nusif_2).reshape(-1))
     npt.assert_almost_equal(macrolib.getValues1D(
         1, '2'), np.array(tr_12).reshape(-1))
+
+
+
+def test_modif_control_rod(geom_3d):
+    import sys
+    np.set_printoptions(threshold=sys.maxsize)
+    large_width = 400
+    np.set_printoptions(linewidth=large_width)
+    pblm, x, y, z = geom_3d
+    new_geom = mat.get_geometry_roded(pblm, x, y, z, [(40, 60, 60, 80, 20, 360)], "fuel1_cr", "fuel1", [280])
+    new_geom = np.array(new_geom)
+    print(pblm[3])
+    print(new_geom[3])
+    import ipdb; ipdb.set_trace()

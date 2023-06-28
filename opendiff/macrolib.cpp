@@ -70,9 +70,9 @@ namespace mat
                     for (int zi = z1_index; zi < z2_index; zi++)
                     {
                         if (zi < z_index)
-                            geometry[zi][yi][zi] = unroded_middle;
+                            geometry[zi][yi][xi] = unroded_middle;
                         else
-                            geometry[zi][yi][zi] = rod_middle;
+                            geometry[zi][yi][xi] = rod_middle;
                     }
                 }
             }

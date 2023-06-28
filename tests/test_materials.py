@@ -338,8 +338,13 @@ def test_modif_control_rod(geom_3d):
     large_width = 400
     np.set_printoptions(linewidth=large_width)
     pblm, x, y, z = geom_3d
-    new_geom = mat.get_geometry_roded(pblm, x, y, z, [(40, 60, 60, 80, 20, 360)], "fuel1_cr", "fuel1", [280])
+    new_geom = mat.get_geometry_roded(pblm, x, y, z, [(60, 80, 60, 80, 20, 360)], "fuel1_cr", "fuel1", [280])
     new_geom = np.array(new_geom)
+    print(pblm[2])
+    print(new_geom[2])
+    print("---------------------------------------------")
     print(pblm[3])
     print(new_geom[3])
+    print(x)
+    print(z)
     import ipdb; ipdb.set_trace()

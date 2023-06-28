@@ -21,6 +21,9 @@ namespace perturbation
 {
     using vecd = std::vector<double>;
     using vecvec = std::vector<Eigen::VectorXd>;
+    using geometry_tuple = std::tuple<double, double, double, double, double, double>;
+    using vector_tuple = std::vector<geometry_tuple>;
+    using geometry_vector = std::vector<std::vector<std::vector<std::string>>>; // make pairlist_t an alias
     using SpMat = Eigen::SparseMatrix<double, Eigen::RowMajor>;
     using Tensor0D = Eigen::Tensor<double, 0, Eigen::RowMajor>;
     using Tensor1D = Eigen::Tensor<double, 1, Eigen::RowMajor>;
@@ -71,7 +74,7 @@ namespace perturbation
         vecd m_y{};
         vecd m_z{};
         std::array<double, 6> m_albedos{{0., 0., 0., 0., 0., 0.}};
-        std::vector<std::vector<std::vector<std::string>>> m_geometry{};
+        geometry_vector m_geometry{};
 
         mat::Middles m_middles{};
 
@@ -91,13 +94,13 @@ namespace perturbation
     public:
         EpGPT(const EpGPT &copy) = default;
 
-        EpGPT(vecd &x, vecd &y, vecd &z, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+        EpGPT(vecd &x, vecd &y, vecd &z, mat::Middles &middles, const geometry_vector &geometry,
               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn);
 
-        EpGPT(vecd &x, vecd &y, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+        EpGPT(vecd &x, vecd &y, mat::Middles &middles, const geometry_vector &geometry,
               double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn);
 
-        EpGPT(vecd &x, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
+        EpGPT(vecd &x, mat::Middles &middles, const geometry_vector &geometry,
               double albedo_x0, double albedo_xn);
 
         Eigen::VectorXd calcSnapshot(std::default_random_engine &generator,
@@ -105,6 +108,7 @@ namespace perturbation
                                      std::normal_distribution<double> &pert_x_distribution,
                                      std::normal_distribution<double> &pert_y_distribution,
                                      std::normal_distribution<double> &pert_z_distribution,
+                                     vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
                                      double power_W, double tol, double tol_eigen_vectors, double ev0,
                                      double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
                                      std::string acceleration);
@@ -120,9 +124,16 @@ namespace perturbation
 
         void createBasis(double precision, double pert_xs_sigma,
                          double pert_x_sigma, double pert_y_sigma, double pert_z_sigma,
+                         vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
                          double power_W, double tol, double tol_eigen_vectors, double ev0,
                          double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
                          std::string acceleration);
+        
+        // void createRodBasis(double precision, double pert_xs_sigma,
+        //                     vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
+        //                     double power_W, double tol, double tol_eigen_vectors, double ev0,
+        //                     double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+        //                     std::string acceleration);
 
         void calcImportances(double tol, const Eigen::VectorXd &v0, double tol_inner,
                              int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond, std::string acceleration);

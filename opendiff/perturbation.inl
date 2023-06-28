@@ -523,6 +523,7 @@ Eigen::VectorXd EpGPT<T, F>::calcSnapshot(std::default_random_engine &generator,
                                        std::normal_distribution<double> &pert_x_distribution,
                                        std::normal_distribution<double> &pert_y_distribution,
                                        std::normal_distribution<double> &pert_z_distribution,
+                                       vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
                                        double power_W, double tol, double tol_eigen_vectors, double ev0,
                                        double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
                                        std::string acceleration)
@@ -530,7 +531,29 @@ Eigen::VectorXd EpGPT<T, F>::calcSnapshot(std::default_random_engine &generator,
     // perturbeb problem
     mat::Middles middles_pert = mat::Middles(m_middles);
     middles_pert.randomPerturbation(generator, pert_xs_distribution);
-    mat::Macrolib macrolib_pert = mat::Macrolib(middles_pert, m_geometry);
+    
+    geometry_vector geometry_pert{};
+
+    if (control_rod_pos.empty())
+        geometry_pert = m_geometry;
+    else
+       { 
+        std::vector<double> control_rod_zpos{};
+        for (geometry_tuple rod_description : control_rod_pos)
+        {
+            std::uniform_real_distribution<double> rod_distribution(std::get<4>(rod_description), std::get<5>(rod_description));
+            control_rod_zpos.push_back(rod_distribution(generator));
+            spdlog::debug("We modify the rod position at z =  {} for  the rod x ({}, {}) y ({}, {}) z ({}, {})", control_rod_zpos.back(),
+             std::get<0>(rod_description), std::get<1>(rod_description), std::get<2>(rod_description), std::get<3>(rod_description),
+             std::get<4>(rod_description), std::get<5>(rod_description));
+        }
+        geometry_pert = mat::get_geometry_roded(m_geometry, m_x, m_y, m_z,
+                                           control_rod_pos, rod_middle, unroded_middle,
+                                           control_rod_zpos);
+        }
+
+
+    mat::Macrolib macrolib_pert = mat::Macrolib(middles_pert, geometry_pert);
     T solver_i{};
 
     vecd x = randomCoordPerturbations(m_x, generator, pert_x_distribution);
@@ -574,6 +597,7 @@ Eigen::VectorXd EpGPT<T, F>::calcSnapshot(std::default_random_engine &generator,
 template <class T, typename F>
 void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
                            double pert_x_sigma, double pert_y_sigma, double pert_z_sigma,
+                           vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
                            double power_W, double tol, double tol_eigen_vectors, double ev0,
                            double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver,
                            std::string inner_precond, std::string acceleration)
@@ -599,6 +623,7 @@ void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
     {
         trials[i] = calcSnapshot(generator, pert_xs_distribution,
                                  pert_x_distribution, pert_y_distribution, pert_z_distribution,
+                                 control_rod_pos, rod_middle, unroded_middle,
                                  power_W,
                                  tol, tol_eigen_vectors, ev0,
                                  tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond,
@@ -628,6 +653,7 @@ void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
         // Replace the current element by a new snapshot
         trials[i] = calcSnapshot(generator, pert_xs_distribution,
                                  pert_x_distribution, pert_y_distribution, pert_z_distribution,
+                                 control_rod_pos, rod_middle, unroded_middle,
                                  power_W,
                                  tol, tol_eigen_vectors, ev0,
                                  tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond,

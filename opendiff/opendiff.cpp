@@ -203,7 +203,9 @@ PYBIND11_MODULE(opendiff, m)
              py::arg("inner_max_iter") = 20, py::arg("solver") = "krylovschur",
              py::arg("inner_solver") = "", py::arg("inner_precond") = "");
 
-    py::class_<solver::SolverCond<SpMat>, solver::Solver>(solver, "SolverCond");
+    py::class_<solver::SolverCond<SpMat>, solver::Solver>(solver, "SolverCond")
+        .def("getK", &solver::SolverCond<SpMat>::getK)
+        .def("getM", &solver::SolverCond<SpMat>::getM);
 
     py::class_<solver::SolverCondPowerIt, solver::SolverCond<SpMat>>(solver, "SolverCondPowerIt")
         .def(py::init<const solver::SolverCondPowerIt &>())

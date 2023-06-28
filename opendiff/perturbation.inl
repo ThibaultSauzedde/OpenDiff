@@ -620,7 +620,7 @@ void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
     std::array<Eigen::VectorXd, nb_trial> trials;
     std::array<double, nb_trial> trials_norm;
     for (auto i{0}; i < nb_trial; ++i)
-    {
+    {   
         trials[i] = calcSnapshot(generator, pert_xs_distribution,
                                  pert_x_distribution, pert_y_distribution, pert_z_distribution,
                                  control_rod_pos, rod_middle, unroded_middle,
@@ -751,12 +751,10 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> EpGPT<T, F>::highOrderPertu
     auto eigen_vectors_star = m_solver_star.getEigenVectors();
     // TODO test the size of the vectors
 
-    auto delta_M = (M_pert - M);
-    auto M_p = M + delta_M;
-    auto delta_L = ((K_pert - K) - delta_M * eigen_values[0]);
+    auto delta_L = ((K_pert - K) - (M_pert - M) * eigen_values[0]);
 
     auto A = eigen_vectors_star[0].dot(delta_L * eigen_vectors[0]);
-    auto B = eigen_vectors_star[0].dot(M_p * eigen_vectors[0]);
+    auto B = eigen_vectors_star[0].dot(M_pert * eigen_vectors[0]);
 
     auto delta_eval = A / B;
     auto delta_eval_prec = delta_eval;
@@ -775,20 +773,20 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> EpGPT<T, F>::highOrderPertu
     Eigen::MatrixXd C1(basis_size, basis_size);
     Eigen::MatrixXd C2(basis_size, basis_size);
 
-    Eigen::MatrixXd C_inv(basis_size, basis_size);
+    Eigen::MatrixXd I_minus_c_inv(basis_size, basis_size); // I 
 
     // eigen value calculation
     for (auto i{0}; i < basis_size; ++i)
     {
         c1(i) = eigen_vectors_star[0].dot(delta_L * m_basis[i]);
-        c2(i) = eigen_vectors_star[0].dot(M_p * m_basis[i]);
-        d1(i) = m_gamma_star[i].dot(delta_L * eigen_vectors[0]) + m_N_star[i] * (norm_vector_pert-m_norm_vector).dot(eigen_vectors[0]);
-        d2(i) = m_gamma_star[i].dot(delta_M * eigen_vectors[0]);
+        c2(i) = eigen_vectors_star[0].dot(M_pert * m_basis[i]);
+        d1(i) = m_gamma_star[i].dot(delta_L * eigen_vectors[0]) ;//+ m_N_star[i] * (norm_vector_pert-m_norm_vector).dot(eigen_vectors[0]);
+        d2(i) = m_gamma_star[i].dot(M_pert * eigen_vectors[0]);
 
         for (auto j{0}; j < basis_size; ++j)
         {
             C1(i, j) = -m_gamma_star[i].dot(delta_L * m_basis[j]);
-            C2(i, j) = m_gamma_star[i].dot(M_p * m_basis[j]);
+            C2(i, j) = -m_gamma_star[i].dot(M_pert * m_basis[j]);
         }
     }
 
@@ -796,28 +794,30 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> EpGPT<T, F>::highOrderPertu
     int k = 0;
     while (r_tol_ev > tol_eigen_value && k < max_iter)
     {
-        C_inv = (Eigen::MatrixXd::Identity(basis_size, basis_size) - C1 - delta_eval * C2).inverse();
-        double C_k = -(c1 - delta_eval * c2).transpose() * C_inv * (d1 - delta_eval * d2);
+        I_minus_c_inv = -(Eigen::MatrixXd::Identity(basis_size, basis_size) + (C1 - delta_eval * C2)).inverse();
+        double C_k = -(c1 - delta_eval * c2).transpose() * I_minus_c_inv * (d1 - delta_eval * d2);
         delta_eval = (A + C_k) / B;
         r_tol_ev = std::abs(delta_eval - delta_eval_prec);
         delta_eval_prec = delta_eval;
         spdlog::debug("Estimated error in iteration {} (delta eigen value = {:.5e}): {:.2e}", k, delta_eval, r_tol_ev);
+        spdlog::debug("Ck = {:.5e}", C_k);
         k++;
     }
 
-    // beta lin calculation
-    Eigen::VectorXd beta_lin(basis_size);
-    for (auto k{0}; k < basis_size; ++k)
-    {
-        beta_lin(k) = firstOrderGPT(m_solver, m_solver_star, solver_pert,
-                                    m_basis[k], m_basis[k],
-                                    m_norm_vector, norm_vector_pert,
-                                    m_N_star[k], m_gamma_star[k]);
-    }
+    // // beta lin calculation 
+    // // ça correspond à d1 en fait ! 
+    // Eigen::VectorXd beta_lin(basis_size);
+    // for (auto k{0}; k < basis_size; ++k)
+    // {
+    //     beta_lin(k) = firstOrderGPT(m_solver, m_solver_star, solver_pert,
+    //                                 m_basis[k], m_basis[k],
+    //                                 m_norm_vector, norm_vector_pert,
+    //                                 m_N_star[k], m_gamma_star[k]);
+    // }
 
     // beta
     Eigen::VectorXd beta(basis_size);
-    beta = C_inv * beta_lin;
+    beta = I_minus_c_inv * d1;
 
     // flux recons
     Eigen::VectorXd ev_recons = eigen_vectors[0]; // copy

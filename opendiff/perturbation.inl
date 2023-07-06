@@ -106,7 +106,7 @@ std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver, T &s
         }
         eval_recons += eigen_vectors_star[0].dot(delta_L_ev);
     }
-    else if (norm_method == "power") // todo fix it, not working
+    else if (norm_method == "power") 
     {
         // add unpert eigen vector (temporary)
         solver_pert.setEigenVectors(eigen_vectors);
@@ -121,7 +121,7 @@ std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver, T &s
         for (int i{1}; i < nb_ev; ++i)
         {
             auto coeff = eigen_vectors_star[i].dot(M * eigen_vectors[i]);
-            auto a_i = eigen_vectors_star[i].dot(delta_L_ev) * 1 / ((eigen_values[0] - eigen_values[i]) * coeff);
+            auto a_i = eigen_vectors_star[i].dot(delta_L_ev) / ((eigen_values[0] - eigen_values[i]) * coeff);
             a.push_back(a_i);
             ev_recons += a_i * eigen_vectors[i];
             auto power_pert_i = solver_pert.getPower(i);
@@ -265,6 +265,128 @@ std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPy
     auto a_python = py::array_t<double, py::array::c_style>({a.dimension(0), a.dimension(1)},
                                                             a.data());
     return std::make_tuple(ev_recons, eval_recons, a_python);
+}
+
+template <class T>
+std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> fullOrderPerturbation(T &solver, T &solver_star, T &solver_pert, double tol_eigen_value, int max_iter, int basis_size)
+{
+    if (!(solver.isNormed() && solver.getNormMethod() == "power"))
+        solver.norm("power", solver_star);
+
+    auto K = solver.getK();
+    auto M = solver.getM();
+    auto K_pert = solver_pert.getK();
+    auto M_pert = solver_pert.getM();
+    auto eigen_values = solver.getEigenValues();
+    auto eigen_vectors = solver.getEigenVectors();
+    auto eigen_vectors_star = solver_star.getEigenVectors();
+    Eigen::VectorXd norm = solver.getPowerNormVector();
+    Eigen::VectorXd norm_pert = solver_pert.getPowerNormVector();
+    double power = norm.dot(eigen_vectors[0]);
+
+    auto delta_M = (M_pert - M);
+    auto delta_L = ((K_pert - K) - delta_M * eigen_values[0]);
+
+    auto A = eigen_vectors_star[0].dot(delta_L * eigen_vectors[0]);
+    auto B = eigen_vectors_star[0].dot(M_pert * eigen_vectors[0]);
+
+    auto delta_eval = A / B;
+    auto delta_eval_prec = delta_eval;
+    spdlog::debug("Estimated error in iteration 0 (delta eigen value = {:.5e})  ({} {})", delta_eval, max_iter, basis_size);
+    int basis_size_real = static_cast<int>(eigen_vectors_star.size());
+    if (basis_size <= 0 || basis_size > basis_size_real)
+        basis_size = basis_size_real;
+
+    Eigen::VectorXd c1(basis_size);
+    Eigen::VectorXd c2(basis_size);
+    Eigen::VectorXd d1(basis_size);
+    Eigen::VectorXd d2(basis_size);
+    Eigen::VectorXd power_pert(basis_size);
+
+    Eigen::MatrixXd C1(basis_size, basis_size);
+    Eigen::MatrixXd C2(basis_size, basis_size);
+
+    Eigen::MatrixXd I_minus_c_inv(basis_size, basis_size); // I
+
+
+    // eigen value calculation
+    for (auto i{0}; i < basis_size; ++i)
+    {
+        // test if i = 0
+        double norm = (eigen_values[0] - eigen_values[i]) * eigen_vectors_star[i].dot(M * eigen_vectors[i]);
+        if (i ==0)
+        {
+            d1(i) = 0; // a_0
+            d2(i) = 0; // a_0
+        }
+        else
+        {
+            d1(i) = eigen_vectors_star[i].dot(delta_L * eigen_vectors[0]) / norm;
+            d2(i) = eigen_vectors_star[i].dot(delta_M * eigen_vectors[0]) / norm;
+        }
+
+        c1(i) = eigen_vectors_star[0].dot(delta_L * eigen_vectors[i]);
+        c2(i) = eigen_vectors_star[0].dot(M_pert * eigen_vectors[i]);
+        power_pert(i) = norm_pert.dot(eigen_vectors[i]);
+
+        for (auto j{0}; j < basis_size; ++j)
+        {
+            if (i ==0)
+            {
+                C1(i, j) = 0;
+                C2(i, j) = 0;
+            }
+            else
+            {
+                C1(i, j) = eigen_vectors_star[i].dot(delta_L * eigen_vectors[j]) / norm;
+                C2(i, j) = eigen_vectors_star[i].dot(M_pert * eigen_vectors[j]) / norm;
+            }
+        }
+    }
+
+    float r_tol_ev = 1e5;
+    int k = 0;
+    Eigen::VectorXd beta = d1;
+    while (r_tol_ev > tol_eigen_value && k < max_iter)
+    {
+        // a_0 calculattion
+        d1(0) = power - power_pert(0);
+        for (auto i{1}; i < basis_size; ++i)
+            d1(0) -= power_pert(i) * beta[i];
+        d1(0) /= power_pert(0);
+
+        I_minus_c_inv = (Eigen::MatrixXd::Identity(basis_size, basis_size) - (C1 - delta_eval * C2)).inverse();
+        // beta
+        beta = I_minus_c_inv * (d1 - delta_eval * d2);
+        double C_k = (c1 - delta_eval * c2).transpose() * beta;
+        delta_eval = (A + C_k) / B;
+        r_tol_ev = std::abs(delta_eval - delta_eval_prec);
+        delta_eval_prec = delta_eval;
+
+        spdlog::debug("Estimated error in iteration {} (delta eigen value = {:.5e}): {:.2e}", k, delta_eval, r_tol_ev);
+        spdlog::debug("Ck = {:.5e}", C_k);
+        k++;
+    }
+
+    // a_0 calculattion
+    d1(0) = power - power_pert(0);
+    for (auto i{1}; i < basis_size; ++i)
+        d1(0) -= power_pert(i) * beta[i];
+    d1(0) /= power_pert(0);
+    
+    // flux recons
+    Eigen::VectorXd ev_recons = eigen_vectors[0]; // copy
+    for (auto k{0}; k < basis_size; ++k)
+        ev_recons += beta(k) * eigen_vectors[k];
+
+    auto eval_recons = eigen_values[0] + delta_eval;
+
+    solver_pert.clearEigenValues();
+    solver_pert.pushEigenValue(eval_recons);
+    solver_pert.pushEigenVector(ev_recons);
+
+    beta(0) -= 1. ; 
+    return std::make_tuple(ev_recons, eval_recons, beta);
 }
 
 template <typename T, typename F>
@@ -817,7 +939,7 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> EpGPT<T, F>::highOrderPertu
 
     // beta
     Eigen::VectorXd beta(basis_size);
-    beta = I_minus_c_inv * d1;
+    beta = I_minus_c_inv * (d1 - delta_eval * d2);
 
     // flux recons
     Eigen::VectorXd ev_recons = eigen_vectors[0]; // copy

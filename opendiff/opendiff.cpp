@@ -257,6 +257,7 @@ PYBIND11_MODULE(opendiff, m)
     perturbation.def("handleDegeneratedEigenvalues", &perturbation::handleDegeneratedEigenvalues<solver::SolverFull<SpMat>>);
     perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation<solver::SolverFull<SpMat>>);
     perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython<solver::SolverFull<SpMat>>);
+    perturbation.def("fullOrderPerturbation", &perturbation::fullOrderPerturbation<solver::SolverFull<SpMat>>);
     perturbation.def("firstOrderGPT", py::overload_cast<const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &,
                                                         Eigen::VectorXd &, Eigen::VectorXd &,
                                                         Eigen::VectorXd &, Eigen::VectorXd &,

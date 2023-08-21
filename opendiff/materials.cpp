@@ -445,7 +445,7 @@ namespace mat
         }
     }
 
-    void Middles::randomPerturbationPython(std::vector<std::string> reactions, double pert_value_max)
+    void Middles::randomPerturbationUniform(std::vector<std::string> reactions, double pert_value_max)
     {
         std::default_random_engine generator(std::chrono::system_clock::now().time_since_epoch().count());
         std::geometric_distribution<int> middles_distribution(0.5);
@@ -453,6 +453,13 @@ namespace mat
         std::uniform_real_distribution<double> pert_value_distribution(-pert_value_max, +pert_value_max);
         randomPerturbation(reactions, generator, middles_distribution,
                            grp_distribution, pert_value_distribution);
+    }
+
+    void Middles::randomPerturbationNormal(double mean, double std)
+    {
+        std::default_random_engine generator(std::chrono::system_clock::now().time_since_epoch().count());
+        std::normal_distribution<double> pert_xs_distribution(mean, std);
+        Middles::randomPerturbation(generator, pert_xs_distribution);
     }
 
 } // namespace mat

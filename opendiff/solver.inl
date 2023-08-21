@@ -771,12 +771,12 @@ inline void SolverFullSlepc::solve(double tol, double tol_eigen_vectors, int nb_
                                    std::string acceleration)
 {
     SolverFullSlepc::solve(tol, nb_eigen_values, v0, ev0,
-                           tol_inner, outer_max_iter, inner_max_iter, "krylovschur", inner_solver, inner_precond);
+                           tol_inner, outer_max_iter, inner_max_iter, "krylovschur", inner_solver, inner_precond, "LM");
 }
 
-// todo add which eigen values (smallest, largest)
 inline void SolverFullSlepc::solve(double tol, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond)
+                                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver,
+                                   std::string inner_solver, std::string inner_precond, std::string which)
 {
     int pblm_dim = static_cast<int>(m_M.rows());
     int v0_size = static_cast<int>(v0.size());
@@ -854,10 +854,15 @@ inline void SolverFullSlepc::solve(double tol, int nb_eigen_values, const Eigen:
     else if (inner_precond == "asm")
         PCSetType(pc, PCASM);
 
-    EPSSetConvergenceTest(eps, EPS_CONV_REL);
+    EPSSetConvergenceTest(eps, EPS_CONV_ABS);
     EPSSetTolerances(eps, tol, outer_max_iter);
-    EPSSetWhichEigenpairs(eps, EPS_LARGEST_MAGNITUDE);
 
+    if (which == "LM")
+        EPSSetWhichEigenpairs(eps, EPS_LARGEST_MAGNITUDE);
+    else if (which == "SM")
+        EPSSetWhichEigenpairs(eps, EPS_SMALLEST_MAGNITUDE);
+        
+    
     KSPSetTolerances(ksp, tol_inner, PETSC_DEFAULT, PETSC_DEFAULT, inner_max_iter);
 
     Vec v0_petsc; /* initial vector */
@@ -945,7 +950,7 @@ inline void SolverFullSlepc::solve(double tol, int nb_eigen_values, const Eigen:
         /*
       Compute the relative error associated to each eigenpair
    */
-        EPSComputeError(eps, i, EPS_ERROR_RELATIVE, &error);
+        EPSComputeError(eps, i, EPS_ERROR_ABSOLUTE, &error);
 #if defined(PETSC_USE_COMPLEX)
         re = PetscRealPart(kr);
         im = PetscImaginaryPart(kr);

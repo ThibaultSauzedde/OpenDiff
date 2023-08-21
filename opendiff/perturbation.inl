@@ -68,6 +68,12 @@ void handleDegeneratedEigenvalues(T &solver, T &solver_star, double max_eps)
     solver_star.handleDenegeratedEigenvalues(max_eps);
 }
 
+
+//
+// Modal Expansion
+//
+
+
 template <typename T>
 std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver, T &solver_star,
                                                                  T &solver_pert, std::string norm_method)
@@ -120,8 +126,9 @@ std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver, T &s
 
         for (int i{1}; i < nb_ev; ++i)
         {
-            auto coeff = eigen_vectors_star[i].dot(M * eigen_vectors[i]);
-            auto a_i = eigen_vectors_star[i].dot(delta_L_ev) / ((eigen_values[0] - eigen_values[i]) * coeff);
+            // auto coeff = ((eigen_values[0] - eigen_values[i]) * eigen_vectors_star[i].dot(M * eigen_vectors[i]));
+            auto coeff = (eigen_vectors_star[i].dot((eigen_values[0] * M - K) * eigen_vectors[i])); // more general when we complete the basis
+            auto a_i = eigen_vectors_star[i].dot(delta_L_ev) / coeff;
             a.push_back(a_i);
             ev_recons += a_i * eigen_vectors[i];
             auto power_pert_i = solver_pert.getPower(i);
@@ -280,9 +287,9 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> fullOrderPerturbation(T &so
     auto eigen_values = solver.getEigenValues();
     auto eigen_vectors = solver.getEigenVectors();
     auto eigen_vectors_star = solver_star.getEigenVectors();
-    Eigen::VectorXd norm = solver.getPowerNormVector();
+    Eigen::VectorXd norm_ref = solver.getPowerNormVector();
     Eigen::VectorXd norm_pert = solver_pert.getPowerNormVector();
-    double power = norm.dot(eigen_vectors[0]);
+    double power = norm_ref.dot(eigen_vectors[0]);
 
     auto delta_M = (M_pert - M);
     auto delta_L = ((K_pert - K) - delta_M * eigen_values[0]);
@@ -322,7 +329,7 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> fullOrderPerturbation(T &so
         else
         {
             d1(i) = eigen_vectors_star[i].dot(delta_L * eigen_vectors[0]) / norm;
-            d2(i) = eigen_vectors_star[i].dot(delta_M * eigen_vectors[0]) / norm;
+            d2(i) = eigen_vectors_star[i].dot(M_pert * eigen_vectors[0]) / norm;
         }
 
         c1(i) = eigen_vectors_star[0].dot(delta_L * eigen_vectors[i]);
@@ -369,10 +376,10 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> fullOrderPerturbation(T &so
     }
 
     // a_0 calculattion
-    d1(0) = power - power_pert(0);
-    for (auto i{1}; i < basis_size; ++i)
-        d1(0) -= power_pert(i) * beta[i];
-    d1(0) /= power_pert(0);
+    // d1(0) = power - power_pert(0);
+    // for (auto i{1}; i < basis_size; ++i)
+    //     d1(0) -= power_pert(i) * beta[i];
+    // d1(0) /= power_pert(0);
     
     // flux recons
     Eigen::VectorXd ev_recons = eigen_vectors[0]; // copy
@@ -388,6 +395,274 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> fullOrderPerturbation(T &so
     beta(0) -= 1. ; 
     return std::make_tuple(ev_recons, eval_recons, beta);
 }
+
+//
+// Modal expansion * range finding
+//
+
+template <typename T, typename F>
+vecvec createAdjointBasis(T &solver, int ev_basis_size, vecvec basis, std::vector<F> basis_solvers,
+                          double tol, double tol_eigen_vectors, double tol_inner, int outer_max_iter, int inner_max_iter,
+                          std::string inner_solver, std::string inner_precond, std::string acceleration)
+{
+    auto M = solver.getM();
+
+    // get the direct basis
+    auto eigen_vectors = solver.getEigenVectors();
+    int ev_basis_size_real = static_cast<int>(eigen_vectors.size());
+    if (ev_basis_size <= 0 || ev_basis_size > ev_basis_size_real)
+        ev_basis_size = ev_basis_size_real;
+
+    vecvec basis_full{};
+    solver.normPhi(); // norm to one every eigenvector
+    for (int i{0}; i < ev_basis_size; ++i)
+        basis_full.push_back(eigen_vectors[i]);
+    int rf_basis_size = static_cast<int>(basis.size());
+    for (int i{0}; i < rf_basis_size; ++i)
+    {
+        basis[i] /= basis[i].norm(); // probably not necesssary
+        basis_full.push_back(basis[i]);
+    }
+    spdlog::debug("Direct basis created");
+
+
+    vecvec adjoint_basis{};
+    for (auto solver_i : basis_solvers)
+    {
+        F solver_i_star = F(solver_i);
+        solver_i_star.makeAdjoint();
+        Eigen::VectorXd v0{};
+        solver_i_star.solve(tol, tol_eigen_vectors, 1, v0, solver.getEigenValues()[0],
+                            tol_inner, outer_max_iter, inner_max_iter,
+                            inner_solver, inner_precond, acceleration);
+        Eigen::VectorXd eigen_vector_star_i = solver_i_star.getEigenVectors()[0];
+        spdlog::debug("Adjoint problem solved");
+
+        // Gram–Schmidt_process
+        for (int k{0}; k < static_cast<int>(basis_full.size()); ++k)
+            eigen_vector_star_i -= eigen_vector_star_i.dot(M * basis_full[k]) * basis_full[k];
+
+        // 2nd Gram–Schmidt_process
+        for (int k{0}; k < static_cast<int>(basis_full.size()); ++k)
+            eigen_vector_star_i -= eigen_vector_star_i.dot(M * basis_full[k]) * basis_full[k];
+
+        eigen_vector_star_i /= eigen_vector_star_i.norm();
+        adjoint_basis.push_back(eigen_vector_star_i);
+    }
+
+    return adjoint_basis;
+}
+
+template <typename T>
+std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationEpGPT(T &solver, T &solver_star,
+                                                                                 T &solver_pert, int ev_basis_size,
+                                                                                 vecvec basis, vecvec gamma_star, std::vector<double> N_star)
+{
+    if (!(solver.isNormed() && solver.getNormMethod() == "power"))
+        solver.norm("power", solver_star);
+
+    auto K = solver.getK();
+    auto M = solver.getM();
+    auto K_pert = solver_pert.getK();
+    auto M_pert = solver_pert.getM();
+    auto eigen_values = solver.getEigenValues();
+    auto eigen_vectors = solver.getEigenVectors();
+    auto eigen_vectors_star = solver_star.getEigenVectors();
+
+    Eigen::VectorXd norm_vector = solver.getPowerNormVector();
+    Eigen::VectorXd norm_vector_pert = solver_pert.getPowerNormVector();
+    double power = norm_vector.dot(eigen_vectors[0]);
+
+    auto delta_M = (M_pert - M);
+    auto delta_L = ((K_pert - K) - delta_M * eigen_values[0]);
+
+    int ev_basis_size_real = static_cast<int>(eigen_vectors_star.size());
+    if (ev_basis_size <= 0 || ev_basis_size > ev_basis_size_real)
+        ev_basis_size = ev_basis_size_real;
+
+    int rf_basis_size = static_cast<int>(basis.size());
+    int basis_size = ev_basis_size + rf_basis_size;
+
+    Eigen::VectorXd beta(basis_size);
+    Eigen::VectorXd power_pert(basis_size);
+
+   
+    for (auto k{0}; k < rf_basis_size; ++k)
+    {
+        auto a_k = firstOrderGPT(solver, solver_star, solver_pert,
+                                 basis[k], basis[k],
+                                 norm_vector, norm_vector_pert,
+                                 N_star[k], gamma_star[k]);
+
+        beta(ev_basis_size + k) = a_k;
+        power_pert(ev_basis_size + k) = norm_vector_pert.dot(basis[k]);
+    }
+
+    for (auto i{0}; i < ev_basis_size; ++i)
+    {
+        double norm = (eigen_values[0] - eigen_values[i]) * eigen_vectors_star[i].dot(M * eigen_vectors[i]);
+        if (i == 0)
+            beta(i) = 0; // a_0
+        else
+        {
+            beta(i) = eigen_vectors_star[i].dot(delta_L * eigen_vectors[0]) / norm;
+            for (auto k{0}; k < rf_basis_size; ++k)
+                beta(i) -= beta(ev_basis_size + k) * eigen_vectors_star[i].dot(K * basis[k]) / norm;
+        }
+
+        power_pert(i) = norm_vector_pert.dot(eigen_vectors[i]);
+    }
+
+    // a_0 calculation
+    beta(0) = power - power_pert(0);
+    for (auto i{1}; i < basis_size; ++i)
+        beta(0) -= power_pert(i) * beta[i];
+    beta(0) /= power_pert(0);
+
+    // flux recons
+    Eigen::VectorXd ev_recons = eigen_vectors[0]; // copy
+    for (auto k{0}; k < ev_basis_size; ++k)
+        ev_recons += beta(k) * eigen_vectors[k];
+    for (auto k{0}; k < rf_basis_size; ++k)
+        ev_recons += beta(ev_basis_size + k) * basis[k];
+
+    auto A = eigen_vectors_star[0].dot(delta_L * eigen_vectors[0]);
+    auto B = eigen_vectors_star[0].dot(M * eigen_vectors[0]);
+
+    auto delta_eval = A / B;
+    for (auto k{0}; k < rf_basis_size; ++k)
+        delta_eval -= beta(ev_basis_size + k) * eigen_vectors_star[0].dot(K * basis[k]) / B;
+
+    auto eval_recons = eigen_values[0] + delta_eval;
+
+    solver_pert.clearEigenValues();
+    solver_pert.pushEigenValue(eval_recons);
+    solver_pert.pushEigenVector(ev_recons);
+
+    beta(0) -= 1.;
+    return std::make_tuple(ev_recons, eval_recons, beta);
+}
+
+template <typename T>
+std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationRangeFinding(T &solver, T &solver_pert, vecvec basis, vecvec adjoint_basis)
+{
+
+    auto K = solver.getK();
+    auto M = solver.getM();
+    auto K_pert = solver_pert.getK();
+    auto M_pert = solver_pert.getM();
+    auto eigen_values = solver.getEigenValues();
+
+    int max_iter = 100 ;
+
+    int basis_size = static_cast<int>(basis.size());
+
+    Eigen::VectorXd beta_0(basis_size);
+    Eigen::MatrixXd phi_i_K_phi_j(basis_size, basis_size);
+    phi_i_K_phi_j.setZero();
+    Eigen::VectorXd phi_i_M_phi_i(basis_size);
+
+    Eigen::VectorXd power_pert(basis_size);
+
+    Eigen::VectorXd norm = solver.getPowerNormVector();
+    Eigen::VectorXd norm_pert = solver_pert.getPowerNormVector();
+    double power = norm.dot(basis[0]);
+
+    auto delta_M = (M_pert - M);
+    auto delta_L = ((K_pert - K) - delta_M * eigen_values[0]);
+
+    auto A = adjoint_basis[0].dot(delta_L * basis[0]);
+    auto B = adjoint_basis[0].dot(M * basis[0]);
+
+    auto delta_eval = A / B;
+    auto delta_eval_prec = delta_eval;
+    spdlog::debug("First delta eigen value = {:.5e})  ({})", delta_eval, max_iter);
+
+    for (auto i{0}; i < basis_size; ++i)
+    {
+        phi_i_M_phi_i(i) = adjoint_basis[i].dot(M * basis[i]);
+        for (auto j{0}; j < basis_size; ++j)
+            phi_i_K_phi_j(i, j) = adjoint_basis[i].dot(K * basis[j]);
+
+        if (i == 0)
+            beta_0(i) = 0; // a_0
+        else
+            beta_0(i) = adjoint_basis[i].dot(delta_L * basis[0]) / (eigen_values[0] * phi_i_M_phi_i(i) - phi_i_K_phi_j(i, i));
+
+        // std::cout << "adjoint_basis[i].dot(delta_L * basis[0]): " << adjoint_basis[i].dot(delta_L * basis[0]) << std::endl;
+        // std::cout << "phi_i_K_phi_j(i, i): " << phi_i_K_phi_j(i, i) << std::endl;
+        // std::cout << "phi_i_M_phi_i(i): " << phi_i_M_phi_i(i) << std::endl;
+
+        power_pert(i) = norm_pert.dot(basis[i]);
+    }
+
+
+    float r_tol_ev = 1e5;
+    int k = 0;
+    float tol_eigen_value = 1e-8 ;
+    Eigen::VectorXd beta = beta_0;
+    // std::cout << "beta_0: " << beta_0 << std::endl;
+    while (r_tol_ev > tol_eigen_value && k < max_iter)
+    {
+        // a_0 calculation
+        beta(0) = power - power_pert(0);
+        for (auto i{1}; i < basis_size; ++i)
+            beta(0) -= power_pert(i) * beta[i];
+        beta(0) /= power_pert(0);
+
+        // beta update
+        for (auto i{1}; i < basis_size; ++i)
+        {   
+            double delta_beta_i = 0. ; 
+            for (auto j{0}; i < basis_size; ++i)
+                {
+                    if (i != j)
+                        delta_beta_i += beta(i) * phi_i_K_phi_j(i, j) ;
+                }
+            beta(i) = beta_0(i) - delta_beta_i / (eigen_values[0] * phi_i_M_phi_i(i) - phi_i_K_phi_j(i, i)) ;
+            // std::cout << "delta_beta_i: " << delta_beta_i << std::endl;
+        }
+            
+
+        // eigenvalue update
+        double C_k = 0;
+        for (auto i{1}; i < basis_size; ++i)
+            C_k += beta(i) * phi_i_K_phi_j(0, i);
+
+        delta_eval = (A + C_k) / B;
+        r_tol_ev = std::abs(delta_eval - delta_eval_prec);
+        delta_eval_prec = delta_eval;
+
+        spdlog::debug("Estimated error in iteration {} (delta eigen value = {:.5e}): {:.2e}", k, delta_eval, r_tol_ev);
+        spdlog::debug("A = {:.5e} / B = {:.5e} / Ck = {:.5e}", A, B, C_k);
+        k++;
+    }
+
+    // a_0 calculation
+    beta(0) = power - power_pert(0);
+    for (auto i{1}; i < basis_size; ++i)
+        beta(0) -= power_pert(i) * beta[i];
+    beta(0) /= power_pert(0);
+    // std::cout << "beta: " << beta << std::endl;
+
+    // flux recons
+    Eigen::VectorXd ev_recons = basis[0]; // copy
+    for (auto k{0}; k < basis_size; ++k)
+        ev_recons += beta(k) * basis[k];
+
+    auto eval_recons = eigen_values[0] + delta_eval;
+
+    solver_pert.clearEigenValues();
+    solver_pert.pushEigenValue(eval_recons);
+    solver_pert.pushEigenVector(ev_recons);
+
+    beta(0) -= 1.;
+    return std::make_tuple(ev_recons, eval_recons, beta);
+}
+
+//
+// Generalized Perturbation Theory
+//
 
 template <typename T, typename F>
 std::tuple<double, Eigen::VectorXd> GPTAdjointImportance(const T &solver, const T &solver_star, Eigen::VectorXd &response, Eigen::VectorXd &norm,
@@ -462,6 +737,8 @@ std::tuple<double, Eigen::VectorXd> firstOrderGPT(const T &solver, const T &solv
 //
 // EpGPT
 //
+
+
 template <class T, typename F>
 EpGPT<T, F>::EpGPT(vecd &x, vecd &y, vecd &z, mat::Middles &middles, const std::vector<std::vector<std::vector<std::string>>> &geometry,
                 double albedo_x0, double albedo_xn, double albedo_y0, double albedo_yn, double albedo_z0, double albedo_zn)
@@ -641,14 +918,14 @@ void EpGPT<T, F>::solveReference(double tol, double tol_eigen_vectors, const Eig
 
 template <class T, typename F>
 Eigen::VectorXd EpGPT<T, F>::calcSnapshot(std::default_random_engine &generator,
-                                       std::normal_distribution<double> &pert_xs_distribution,
-                                       std::normal_distribution<double> &pert_x_distribution,
-                                       std::normal_distribution<double> &pert_y_distribution,
-                                       std::normal_distribution<double> &pert_z_distribution,
-                                       vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
-                                       double power_W, double tol, double tol_eigen_vectors, double ev0,
-                                       double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
-                                       std::string acceleration)
+                                          std::normal_distribution<double> &pert_xs_distribution,
+                                          std::normal_distribution<double> &pert_x_distribution,
+                                          std::normal_distribution<double> &pert_y_distribution,
+                                          std::normal_distribution<double> &pert_z_distribution,
+                                          vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
+                                          double power_W, double tol, double tol_eigen_vectors, double ev0,
+                                          double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                                          std::string acceleration, bool store_solvers)
 {
     // perturbeb problem
     mat::Middles middles_pert = mat::Middles(m_middles);
@@ -711,6 +988,9 @@ Eigen::VectorXd EpGPT<T, F>::calcSnapshot(std::default_random_engine &generator,
                    inner_solver, inner_precond, acceleration);
     solver_i.normPower(power_W);
 
+    if (store_solvers)
+        m_basis_solvers.push_back(solver_i);
+
     Eigen::VectorXd delta_ev = solver_i.getEigenVectors()[0] - m_solver.getEigenVectors()[0];
     spdlog::info("Snapshot delta eigenvalue {},", 1e5 * (m_solver.getEigenValues()[0] - solver_i.getEigenValues()[0]) / (m_solver.getEigenValues()[0] * solver_i.getEigenValues()[0]));
     return delta_ev;
@@ -718,11 +998,11 @@ Eigen::VectorXd EpGPT<T, F>::calcSnapshot(std::default_random_engine &generator,
 
 template <class T, typename F>
 void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
-                           double pert_x_sigma, double pert_y_sigma, double pert_z_sigma,
-                           vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
-                           double power_W, double tol, double tol_eigen_vectors, double ev0,
-                           double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver,
-                           std::string inner_precond, std::string acceleration)
+                              double pert_x_sigma, double pert_y_sigma, double pert_z_sigma,
+                              vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
+                              double power_W, double tol, double tol_eigen_vectors, double ev0,
+                              double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver,
+                              std::string inner_precond, std::string acceleration, bool store_solvers)
 {
     const int nb_trial = 10;
 
@@ -730,6 +1010,12 @@ void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
     m_norm_vector = m_solver.getPowerNormVector();
     double ev_norm = m_solver.getEigenVectors()[0].norm();
     // m_solver.normVector(m_norm_vector, power_W);
+
+    //if the basis already exits, we norm it
+    for (auto k{0}; k < static_cast<int>(m_basis.size()); ++k)
+    {
+        m_basis[k] = m_basis[k] / m_basis[k].norm();
+    }
 
     // complete the basis
     std::default_random_engine generator(std::chrono::system_clock::now().time_since_epoch().count());
@@ -742,14 +1028,14 @@ void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
     std::array<Eigen::VectorXd, nb_trial> trials;
     std::array<double, nb_trial> trials_norm;
     for (auto i{0}; i < nb_trial; ++i)
-    {   
+    {
         trials[i] = calcSnapshot(generator, pert_xs_distribution,
                                  pert_x_distribution, pert_y_distribution, pert_z_distribution,
                                  control_rod_pos, rod_middle, unroded_middle,
                                  power_W,
                                  tol, tol_eigen_vectors, ev0,
                                  tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond,
-                                 acceleration);
+                                 acceleration, store_solvers);
 
         // if the basis is not empty, we remove it in the trials
         for (int k{0}; k < static_cast<int>(m_basis.size()); ++k)
@@ -779,7 +1065,7 @@ void EpGPT<T, F>::createBasis(double precision, double pert_xs_sigma,
                                  power_W,
                                  tol, tol_eigen_vectors, ev0,
                                  tol_inner, outer_max_iter, inner_max_iter, inner_solver, inner_precond,
-                                 acceleration);
+                                 acceleration, store_solvers);
 
         // Gram–Schmidt_process with the new element
         for (int k{0}; k < static_cast<int>(m_basis.size()); ++k)

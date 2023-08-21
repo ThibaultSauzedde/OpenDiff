@@ -43,8 +43,24 @@ namespace perturbation
 
     template <typename T>
     std::tuple<Eigen::VectorXd, double, Tensor2D> highOrderPerturbation(int order, T &solver, T &solver_star, T &solver_pert);
+
     template <typename T>
     std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPython(int order, T &solver, T &solver_star, T &solver_pert);
+
+    template <typename T>
+    vecvec createAdjointBasis(T &solver_star, int ev_basis_size, vecvec basis, std::vector<T> basis_solvers,
+                              double tol, double tol_eigen_vectors, double tol_inner, int outer_max_iter, int inner_max_iter,
+                              std::string inner_solver, std::string inner_precond, std::string acceleration);
+
+    template <typename T>
+    std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationEpGPT(T &solver, T &solver_star,
+                                                                          T &solver_pert, int basis_size,
+                                                                          vecvec basis, vecvec gamma_star, std::vector<double> N_star);
+
+    template <typename T>
+    std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationRangeFinding(T &solver,
+                                                                                 T &solver_pert,
+                                                                                 vecvec basis, vecvec adjoint_basis);
 
     template <typename T, typename F>
     std::tuple<double, Eigen::VectorXd> GPTAdjointImportance(const T &solver, const T &solver_star,
@@ -80,6 +96,8 @@ namespace perturbation
 
         T m_solver{};
         T m_solver_star{};
+        std::vector<T> m_basis_solvers{};
+
         Eigen::VectorXd m_norm_vector{};
 
         double m_precision{1e-5};
@@ -111,7 +129,7 @@ namespace perturbation
                                      vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
                                      double power_W, double tol, double tol_eigen_vectors, double ev0,
                                      double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
-                                     std::string acceleration);
+                                     std::string acceleration, bool store_solvers);
 
         void solveReference(double tol, double tol_eigen_vectors, const Eigen::VectorXd &v0, double ev0,
                             double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
@@ -127,8 +145,8 @@ namespace perturbation
                          vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
                          double power_W, double tol, double tol_eigen_vectors, double ev0,
                          double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
-                         std::string acceleration);
-        
+                         std::string acceleration, bool store_solvers = false);
+
         // void createRodBasis(double precision, double pert_xs_sigma,
         //                     vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
         //                     double power_W, double tol, double tol_eigen_vectors, double ev0,
@@ -147,12 +165,14 @@ namespace perturbation
         auto &getN_star() { return m_N_star; };
         auto &getSolver() { return m_solver; };
         auto &getSolverStar() { return m_solver_star; };
+        auto &getBasisSolvers() { return m_basis_solvers; };
 
         void setBasis(vecvec basis) { m_basis = basis; };
         void setImportances(vecvec gamma_star) { m_gamma_star = gamma_star; };
         void setN_star(std::vector<double> n_star) { m_N_star = n_star; };
         void setSolver(T solver) { m_solver = solver; };
         void setSolverStar(T solver_star) { m_solver_star = solver_star; };
+        auto setBasisSolvers(std::vector<T> basis_solvers) { m_basis_solvers = basis_solvers; };
 
         void dump(std::string file_name);
 

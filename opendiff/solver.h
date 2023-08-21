@@ -362,7 +362,8 @@ namespace solver
                    std::string acceleration) override;
 
         void solve(double tol, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
-                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver, std::string inner_solver, std::string inner_precond);
+                   double tol_inner, int outer_max_iter, int inner_max_iter, std::string solver,
+                   std::string inner_solver, std::string inner_precond, std::string which);
     };
 
     // class SolverFullSpectra : public SolverFull<SpMat>

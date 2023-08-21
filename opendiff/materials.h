@@ -160,7 +160,8 @@ namespace mat
         void randomPerturbation(std::default_random_engine &generator,
                                 std::normal_distribution<double> &pert_value_distribution);
 
-        void randomPerturbationPython(std::vector<std::string> reactions, double pert_value_max);
+        void randomPerturbationUniform(std::vector<std::string> reactions, double pert_value_max);
+        void randomPerturbationNormal(double mean, double std);
     };
 
 } // namespace mat

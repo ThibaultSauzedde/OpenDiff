@@ -117,7 +117,8 @@ PYBIND11_MODULE(opendiff, m)
         .def("getXsValue", py::overload_cast<const std::string, const int, const std::string &>(&mat::Middles::getXsValue, py::const_))
         .def("multXsValue", py::overload_cast<const std::string, const int, const std::string &, const std::string &, double>(&mat::Middles::multXsValue))
         .def("multXsValue", py::overload_cast<const std::string, const int, const std::string &, double>(&mat::Middles::multXsValue))
-        .def("randomPerturbation", &mat::Middles::randomPerturbationPython);
+        .def("randomPerturbationUniform", &mat::Middles::randomPerturbationUniform)
+        .def("randomPerturbationNormal", &mat::Middles::randomPerturbationNormal);
 
     py::class_<mat::Macrolib>(materials, "Macrolib")
         // .def(py::init<const mat::Macrolib &>())
@@ -156,9 +157,11 @@ PYBIND11_MODULE(opendiff, m)
         .def("getVolumes", &solver::Solver::getVolumesPython)
         .def("makeAdjoint", &solver::Solver::makeAdjoint)
         .def("getEigenValues", &solver::Solver::getEigenValues)
+        .def("setEigenValues", &solver::Solver::setEigenValues)
         .def("getDominanceRatio", &solver::Solver::getDominanceRatio)
         .def("setDominanceRatio", &solver::Solver::setDominanceRatio)
         .def("getEigenVectors", &solver::Solver::getEigenVectors)
+        .def("setEigenVectors", &solver::Solver::setEigenVectors)
         .def("getVolumes", &solver::Solver::getVolumesPython)
         .def("getEigenVector", &solver::Solver::getEigenVectorPython)
         .def("getPower", &solver::Solver::getPowerPython)
@@ -196,12 +199,12 @@ PYBIND11_MODULE(opendiff, m)
         .def(py::init<vecd &, mat::Macrolib &, double, double>())
         .def(py::init<vecd &, vecd &, mat::Macrolib &, double, double, double, double>())
         .def(py::init<vecd &, vecd &, vecd &, mat::Macrolib &, double, double, double, double, double, double>())
-        .def("solve", py::overload_cast<double, int, const Eigen::VectorXd &, double, double, int, int, std::string, std::string, std::string>(&solver::SolverFullSlepc::solve),
+        .def("solve", py::overload_cast<double, int, const Eigen::VectorXd &, double, double, int, int, std::string, std::string, std::string, std::string>(&solver::SolverFullSlepc::solve),
              py::arg("tol") = 1e-6,
              py::arg("nb_eigen_values") = 1, py::arg("v0") = Eigen::VectorXd(), py::arg("ev0") = 1.0,
              py::arg("tol_inner") = 1e-4, py::arg("outer_max_iter") = 500,
              py::arg("inner_max_iter") = 20, py::arg("solver") = "krylovschur",
-             py::arg("inner_solver") = "", py::arg("inner_precond") = "");
+             py::arg("inner_solver") = "", py::arg("inner_precond") = "", py::arg("which") = "LM");
 
     py::class_<solver::SolverCond<SpMat>, solver::Solver>(solver, "SolverCond")
         .def("getK", &solver::SolverCond<SpMat>::getK)
@@ -256,6 +259,9 @@ PYBIND11_MODULE(opendiff, m)
                      py::arg("max_eps") = 1e-6, py::arg("raise_error") = false);
     perturbation.def("handleDegeneratedEigenvalues", &perturbation::handleDegeneratedEigenvalues<solver::SolverFull<SpMat>>);
     perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation<solver::SolverFull<SpMat>>);
+    perturbation.def("createAdjointBasis", &perturbation::createAdjointBasis<solver::SolverFull<SpMat>, solver::SolverCondPowerIt>);
+    perturbation.def("firstOrderPerturbationEpGPT", &perturbation::firstOrderPerturbationEpGPT<solver::SolverFull<SpMat>>);
+    perturbation.def("firstOrderPerturbationRangeFinding", &perturbation::firstOrderPerturbationRangeFinding<solver::SolverFull<SpMat>>);
     perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython<solver::SolverFull<SpMat>>);
     perturbation.def("fullOrderPerturbation", &perturbation::fullOrderPerturbation<solver::SolverFull<SpMat>>);
     perturbation.def("firstOrderGPT", py::overload_cast<const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &,
@@ -263,6 +269,9 @@ PYBIND11_MODULE(opendiff, m)
                                                         Eigen::VectorXd &, Eigen::VectorXd &,
                                                         double, double, int, int,
                                                         std::string, std::string, std::string>(&perturbation::firstOrderGPT<solver::SolverFull<SpMat>, solver::SolverFullFixedSource>));
+    
+    
+    
     // operators.def("diff_diffusion_op_3d", py::overload_cast<vecd &, vecd &, vecd &, mat::Macrolib &,
     //                                                         double, double, double, double, double, double>(&operators::diff_diffusion_op<SpMat, vecd>));
     // &perturbation::firstOrderGPT<solver::SolverFull<SpMat>>);
@@ -283,11 +292,13 @@ PYBIND11_MODULE(opendiff, m)
         .def("getN_star", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getN_star)
         .def("getSolver", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getSolver)
         .def("getSolverStar", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getSolverStar)
+        .def("getBasisSolvers", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getBasisSolvers)
         .def("setBasis", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setBasis)
         .def("setImportances", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setImportances)
         .def("setN_star", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setN_star)
         .def("setSolver", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setSolver)
         .def("setSolverStar", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setSolverStar)
+        .def("setBasisSolvers", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::setBasisSolvers)
         .def("dump", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::dump)
         .def("load", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::load);
 
@@ -307,12 +318,13 @@ PYBIND11_MODULE(opendiff, m)
         .def("getN_star", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getN_star)
         .def("getSolver", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getSolver)
         .def("getSolverStar", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getSolverStar)
+        .def("getBasisSolvers", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getBasisSolvers)
         .def("setBasis", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setBasis)
         .def("setImportances", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setImportances)
         .def("setN_star", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setN_star)
         .def("setSolver", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setSolver)
         .def("setSolverStar", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setSolverStar)
+        .def("setBasisSolvers", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setBasisSolvers)
         .def("dump", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::dump)
         .def("load", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::load);
-
 }

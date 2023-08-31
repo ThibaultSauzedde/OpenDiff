@@ -18,69 +18,6 @@ inline Tensor1D delta_coord(vecd &coord)
 // Solver
 //-------------------------------------------------------------------------
 
-inline void Solver::handleDenegeratedEigenvalues(double max_eps)
-{
-    // get degenerated eigen values
-    int vsize = static_cast<int>(m_eigen_values.size());
-    std::vector<int> ids_deg{};
-    std::vector<std::vector<int>> ids_group{};
-    ids_group.push_back({});
-    for (auto i = 1; i < vsize; ++i)
-    {
-        if (std::abs(m_eigen_values[i] - m_eigen_values[i - 1]) < max_eps)
-        {
-            // first insertion
-            if (ids_group.back().empty())
-            {
-                ids_group.back().push_back(i - 1);
-                ids_group.back().push_back(i);
-            }
-            // last element of last group == i - 1
-            else if (ids_group.back().back() == (i - 1))
-                ids_group.back().push_back(i);
-            else
-            {
-                ids_group.push_back({});
-                ids_group.back().push_back(i - 1);
-                ids_group.back().push_back(i);
-            }
-        }
-    }
-
-    // handle each group of degenerated eigen values (if the eigenvectors are not orthogonal)
-    for (auto ids : ids_group)
-    {
-        if (ids.empty())
-            continue;
-
-        int ids_size = static_cast<int>(ids.size());
-
-        // calc the coeff
-        std::vector<double> a_ii{};
-        a_ii.push_back(m_eigen_vectors[ids[0]].dot(m_eigen_vectors[ids[0]])); // a00
-
-        spdlog::info("New orthogonalisation with a group of {} eigenvectors from {} to {}", ids_size, ids[0], ids.back());
-        spdlog::debug("We keep the vector {} with eigenvalue: {:.5f}", ids[0], m_eigen_values[ids[0]]);
-
-        // get the new eigenvectors
-        for (auto ev_i = 1; ev_i < ids_size; ++ev_i) // all ev except the first one (we keep it without modif)
-        {
-            spdlog::debug("Orthogonalisation of eigenvector {} with eigenvalue: {:.5f}", ids[ev_i], m_eigen_values[ids[ev_i]]);
-            for (auto k_i = 0; k_i < ev_i; ++k_i) // substract the unwanted part of the vector
-            {
-                auto ain = m_eigen_vectors[ids[k_i]].dot(m_eigen_vectors[ids.back()]);
-                auto coeff = -ain / a_ii[k_i];
-                spdlog::debug("Coeff for k_{} = {:.5f} = - {:.5e} / {:.5e}", k_i, coeff, ain, a_ii[k_i]);
-                if (std::abs(coeff) < 1e-8)
-                    continue;
-                m_eigen_vectors[ids[ev_i]] += coeff * m_eigen_vectors[ids[k_i]];
-            }
-            // append the new norm coeff
-            a_ii.push_back(m_eigen_vectors[ids[ev_i]].dot(m_eigen_vectors[ids[ev_i]]));
-        }
-    }
-}
-
 inline bool Solver::isOrthogonal(double max_eps, bool raise_error)
 {
     int vsize = static_cast<int>(m_eigen_values.size());
@@ -854,7 +791,7 @@ inline void SolverFullSlepc::solve(double tol, int nb_eigen_values, const Eigen:
     else if (inner_precond == "asm")
         PCSetType(pc, PCASM);
 
-    EPSSetConvergenceTest(eps, EPS_CONV_ABS);
+    EPSSetConvergenceTest(eps, EPS_CONV_NORM);
     EPSSetTolerances(eps, tol, outer_max_iter);
 
     if (which == "LM")
@@ -947,6 +884,8 @@ inline void SolverFullSlepc::solve(double tol, int nb_eigen_values, const Eigen:
      ki (imaginary part)
    */
         EPSGetEigenpair(eps, i, &kr, &ki, xr, xi);
+
+        // EPSGetInvariantSubspace(eps, xr)
         /*
       Compute the relative error associated to each eigenpair
    */

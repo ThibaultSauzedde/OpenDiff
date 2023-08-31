@@ -38,7 +38,7 @@ bool checkBiOrthogonality(T &solver, T &solver_star, double max_eps, bool raise_
             all_test.push_back(std::abs(test));
             if (std::abs(test) > max_eps)
             {
-                spdlog::debug("Biorthogonality test failed for {}, {}: {:.2e}", i, j, test);
+                spdlog::debug("M-orthogonality test failed for {}, {}: {:.2e}", i, j, test);
                 ids_remove.push_back(std::max(i, j)); // remove max of both
             }
         }
@@ -54,7 +54,7 @@ bool checkBiOrthogonality(T &solver, T &solver_star, double max_eps, bool raise_
 
     spdlog::info("Biorthogonality max test : {:.2e}", max_test);
     if (max_test > max_eps && raise_error)
-        throw std::invalid_argument("The eigen vector are not bi-orthogonals!");
+        throw std::invalid_argument("The eigenvectors direct and adjoint basis are not M-orthogonals!");
     else if (max_test > max_eps)
         return false;
     else
@@ -64,8 +64,114 @@ bool checkBiOrthogonality(T &solver, T &solver_star, double max_eps, bool raise_
 template <typename T>
 void handleDegeneratedEigenvalues(T &solver, T &solver_star, double max_eps)
 {
-    solver.handleDenegeratedEigenvalues(max_eps);
-    solver_star.handleDenegeratedEigenvalues(max_eps);
+    auto K = solver.getK();
+    auto M = solver.getM();
+    auto eigen_values = solver.getEigenValues();
+    auto eigen_values_star = solver_star.getEigenValues();
+    auto eigen_vectors = solver.getEigenVectors();
+    auto eigen_vectors_star = solver_star.getEigenVectors();
+
+    // assert that the eigenvalues are identicals for direct and ajoint problems
+    int vsize = static_cast<int>(std::min(eigen_values.size(), eigen_values_star.size()));
+    for (auto i = 0; i < vsize; ++i)
+    {
+        if (std::abs(eigen_values[i] - eigen_values_star[i]) > max_eps)
+        {
+            spdlog::debug("Eigenvalues test failed for {}, {}: {:.2e}", i, eigen_values[i], eigen_values_star[i]);
+            throw std::invalid_argument("The eigenv are not identicals for the direct and ajoint problems!");
+        }
+    }
+
+    //
+    // get degenerated eigenvalues
+    //
+    std::vector<int> ids_deg{};
+    std::vector<std::vector<int>> ids_group{};
+    ids_group.push_back({});
+    for (auto i = 1; i < vsize; ++i)
+    {
+        if (std::abs(eigen_values[i] - eigen_values[i - 1]) < max_eps)
+        {
+            // first insertion
+            if (ids_group.back().empty())
+            {
+                ids_group.back().push_back(i - 1);
+                ids_group.back().push_back(i);
+            }
+            // last element of last group == i - 1
+            else if (ids_group.back().back() == (i - 1))
+                ids_group.back().push_back(i);
+            else
+            {
+                ids_group.push_back({});
+                ids_group.back().push_back(i - 1);
+                ids_group.back().push_back(i);
+            }
+        }
+    }
+
+    //
+    // handle each group of degenerated eigen values (if the eigenvectors are not orthogonal)
+    //
+    for (auto ids : ids_group)
+    {
+        if (ids.empty())
+            continue;
+
+        int ids_size = static_cast<int>(ids.size());
+        
+        //
+        // Make the eigenvector basis orthogonal 
+        //
+
+        // calc the coeff
+        std::vector<double> a_ii{};
+        a_ii.push_back(eigen_vectors[ids[0]].dot(eigen_vectors[ids[0]])); // a00
+
+        spdlog::info("New orthogonalisation with a group of {} eigenvectors from {} to {}", ids_size, ids[0], ids.back());
+        spdlog::debug("We keep the vector {} with eigenvalue: {:.5f}", ids[0], eigen_values[ids[0]]);
+
+        // get the new eigenvectors
+        for (auto ev_i = 1; ev_i < ids_size; ++ev_i) // all ev except the first one (we keep it without modif)
+        {
+            spdlog::debug("Orthogonalisation of eigenvector {} with eigenvalue: {:.5f}", ids[ev_i], eigen_values[ids[ev_i]]);
+            for (auto k_i = 0; k_i < ev_i; ++k_i) // substract the unwanted part of the vector
+            {
+                auto ain = eigen_vectors[ids[k_i]].dot(eigen_vectors[ids.back()]);
+                auto coeff = -ain / a_ii[k_i];
+                spdlog::debug("Coeff for k_{} = {:.5f} = - {:.5e} / {:.5e}", k_i, coeff, ain, a_ii[k_i]);
+                eigen_vectors[ids[ev_i]] += coeff * eigen_vectors[ids[k_i]]; // why does it works??? 
+            }
+            // append the new norm coeff
+            a_ii.push_back(eigen_vectors[ids[ev_i]].dot(eigen_vectors[ids[ev_i]]));
+        }
+
+        //
+        // Make the eigenvector basis and adjoint eigenvector basis M-orthogonal 
+        //
+
+        // calc the coeff
+        a_ii.clear();
+        a_ii.push_back(eigen_vectors_star[ids[0]].dot(M * eigen_vectors[ids[0]])); // a00
+
+        spdlog::info("New M orthogonalisation with a group of {} eigenvectors from {} to {}", ids_size, ids[0], ids.back());
+        spdlog::debug("We keep the adjoint eigenvector {} with eigenvalue: {:.5f}", ids[0], eigen_values[ids[0]]);
+
+        // get the new eigenvectors
+        for (auto ev_i = 1; ev_i < ids_size; ++ev_i) // all ev except the first one (we keep it without modif)
+        {
+            spdlog::debug("M orthogonalisation of adjoint eigenvector {} with eigenvalue: {:.5f}", ids[ev_i], eigen_values[ids[ev_i]]);
+            for (auto k_i = 0; k_i < ev_i; ++k_i) // substract the unwanted part of the vector
+            {
+                auto ain = eigen_vectors_star[ids[k_i]].dot(M * eigen_vectors[ids.back()]);
+                auto coeff = -ain / a_ii[k_i];
+                spdlog::debug("Coeff for k_{} = {:.5f} = - {:.5e} / {:.5e}", k_i, coeff, ain, a_ii[k_i]);
+                eigen_vectors_star[ids[ev_i]] += coeff * eigen_vectors_star[ids[k_i]]; // why does it works??? 
+            }
+            // append the new norm coeff
+            a_ii.push_back(eigen_vectors_star[ids[ev_i]].dot(M * eigen_vectors[ids[ev_i]]));
+        }
+    }
 }
 
 
@@ -275,7 +381,7 @@ std::tuple<Eigen::VectorXd, double, py::array_t<double>> highOrderPerturbationPy
 }
 
 template <class T>
-std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> fullOrderPerturbation(T &solver, T &solver_star, T &solver_pert, double tol_eigen_value, int max_iter, int basis_size)
+std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> exactPerturbation(T &solver, T &solver_star, T &solver_pert, double tol_eigen_value, int max_iter, int basis_size)
 {
     if (!(solver.isNormed() && solver.getNormMethod() == "power"))
         solver.norm("power", solver_star);
@@ -392,7 +498,7 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> fullOrderPerturbation(T &so
     solver_pert.pushEigenValue(eval_recons);
     solver_pert.pushEigenVector(ev_recons);
 
-    beta(0) -= 1. ; 
+    // beta(0) -= 1. ; 
     return std::make_tuple(ev_recons, eval_recons, beta);
 }
 
@@ -400,58 +506,58 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> fullOrderPerturbation(T &so
 // Modal expansion * range finding
 //
 
-template <typename T, typename F>
-vecvec createAdjointBasis(T &solver, int ev_basis_size, vecvec basis, std::vector<F> basis_solvers,
-                          double tol, double tol_eigen_vectors, double tol_inner, int outer_max_iter, int inner_max_iter,
-                          std::string inner_solver, std::string inner_precond, std::string acceleration)
-{
-    auto M = solver.getM();
+// template <typename T, typename F>
+// vecvec createAdjointBasis(T &solver, int ev_basis_size, vecvec basis, std::vector<F> basis_solvers,
+//                           double tol, double tol_eigen_vectors, double tol_inner, int outer_max_iter, int inner_max_iter,
+//                           std::string inner_solver, std::string inner_precond, std::string acceleration)
+// {
+//     auto M = solver.getM();
 
-    // get the direct basis
-    auto eigen_vectors = solver.getEigenVectors();
-    int ev_basis_size_real = static_cast<int>(eigen_vectors.size());
-    if (ev_basis_size <= 0 || ev_basis_size > ev_basis_size_real)
-        ev_basis_size = ev_basis_size_real;
+//     // get the direct basis
+//     auto eigen_vectors = solver.getEigenVectors();
+//     int ev_basis_size_real = static_cast<int>(eigen_vectors.size());
+//     if (ev_basis_size <= 0 || ev_basis_size > ev_basis_size_real)
+//         ev_basis_size = ev_basis_size_real;
 
-    vecvec basis_full{};
-    solver.normPhi(); // norm to one every eigenvector
-    for (int i{0}; i < ev_basis_size; ++i)
-        basis_full.push_back(eigen_vectors[i]);
-    int rf_basis_size = static_cast<int>(basis.size());
-    for (int i{0}; i < rf_basis_size; ++i)
-    {
-        basis[i] /= basis[i].norm(); // probably not necesssary
-        basis_full.push_back(basis[i]);
-    }
-    spdlog::debug("Direct basis created");
+//     vecvec basis_full{};
+//     solver.normPhi(); // norm to one every eigenvector
+//     for (int i{0}; i < ev_basis_size; ++i)
+//         basis_full.push_back(eigen_vectors[i]);
+//     int rf_basis_size = static_cast<int>(basis.size());
+//     for (int i{0}; i < rf_basis_size; ++i)
+//     {
+//         basis[i] /= basis[i].norm(); // probably not necesssary
+//         basis_full.push_back(basis[i]);
+//     }
+//     spdlog::debug("Direct basis created");
 
 
-    vecvec adjoint_basis{};
-    for (auto solver_i : basis_solvers)
-    {
-        F solver_i_star = F(solver_i);
-        solver_i_star.makeAdjoint();
-        Eigen::VectorXd v0{};
-        solver_i_star.solve(tol, tol_eigen_vectors, 1, v0, solver.getEigenValues()[0],
-                            tol_inner, outer_max_iter, inner_max_iter,
-                            inner_solver, inner_precond, acceleration);
-        Eigen::VectorXd eigen_vector_star_i = solver_i_star.getEigenVectors()[0];
-        spdlog::debug("Adjoint problem solved");
+//     vecvec adjoint_basis{};
+//     for (auto solver_i : basis_solvers)
+//     {
+//         F solver_i_star = F(solver_i);
+//         solver_i_star.makeAdjoint();
+//         Eigen::VectorXd v0{};
+//         solver_i_star.solve(tol, tol_eigen_vectors, 1, v0, solver.getEigenValues()[0],
+//                             tol_inner, outer_max_iter, inner_max_iter,
+//                             inner_solver, inner_precond, acceleration);
+//         Eigen::VectorXd eigen_vector_star_i = solver_i_star.getEigenVectors()[0];
+//         spdlog::debug("Adjoint problem solved");
 
-        // Gram–Schmidt_process
-        for (int k{0}; k < static_cast<int>(basis_full.size()); ++k)
-            eigen_vector_star_i -= eigen_vector_star_i.dot(M * basis_full[k]) * basis_full[k];
+//         // Gram–Schmidt_process
+//         for (int k{0}; k < static_cast<int>(basis_full.size()); ++k)
+//             eigen_vector_star_i -= eigen_vector_star_i.dot(M * basis_full[k]) * basis_full[k];
 
-        // 2nd Gram–Schmidt_process
-        for (int k{0}; k < static_cast<int>(basis_full.size()); ++k)
-            eigen_vector_star_i -= eigen_vector_star_i.dot(M * basis_full[k]) * basis_full[k];
+//         // 2nd Gram–Schmidt_process
+//         for (int k{0}; k < static_cast<int>(basis_full.size()); ++k)
+//             eigen_vector_star_i -= eigen_vector_star_i.dot(M * basis_full[k]) * basis_full[k];
 
-        eigen_vector_star_i /= eigen_vector_star_i.norm();
-        adjoint_basis.push_back(eigen_vector_star_i);
-    }
+//         eigen_vector_star_i /= eigen_vector_star_i.norm();
+//         adjoint_basis.push_back(eigen_vector_star_i);
+//     }
 
-    return adjoint_basis;
-}
+//     return adjoint_basis;
+// }
 
 template <typename T>
 std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationEpGPT(T &solver, T &solver_star,
@@ -545,6 +651,8 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationEpGPT
 
 template <typename T>
 std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationRangeFinding(T &solver, T &solver_pert, vecvec basis, vecvec adjoint_basis)
+/*This algorithm is not stable ! 
+*/
 {
 
     auto K = solver.getK();
@@ -553,16 +661,7 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationRange
     auto M_pert = solver_pert.getM();
     auto eigen_values = solver.getEigenValues();
 
-    int max_iter = 100 ;
-
     int basis_size = static_cast<int>(basis.size());
-
-    Eigen::VectorXd beta_0(basis_size);
-    Eigen::MatrixXd phi_i_K_phi_j(basis_size, basis_size);
-    phi_i_K_phi_j.setZero();
-    Eigen::VectorXd phi_i_M_phi_i(basis_size);
-
-    Eigen::VectorXd power_pert(basis_size);
 
     Eigen::VectorXd norm = solver.getPowerNormVector();
     Eigen::VectorXd norm_pert = solver_pert.getPowerNormVector();
@@ -571,84 +670,44 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationRange
     auto delta_M = (M_pert - M);
     auto delta_L = ((K_pert - K) - delta_M * eigen_values[0]);
 
-    auto A = adjoint_basis[0].dot(delta_L * basis[0]);
-    auto B = adjoint_basis[0].dot(M * basis[0]);
+    Eigen::MatrixXd A(basis_size, basis_size);
+    Eigen::VectorXd b(basis_size);
 
-    auto delta_eval = A / B;
-    auto delta_eval_prec = delta_eval;
-    spdlog::debug("First delta eigen value = {:.5e})  ({})", delta_eval, max_iter);
+    for (auto j{0}; j < basis_size; ++j)
+        A(0, j) = norm_pert.dot(basis[j]);
+
+    b(0) = power - A(0, 0);
+    for (auto i{1}; i < basis_size; ++i)
+        b(i) = adjoint_basis[i].dot(delta_L * basis[0]);
 
     for (auto i{0}; i < basis_size; ++i)
     {
-        phi_i_M_phi_i(i) = adjoint_basis[i].dot(M * basis[i]);
         for (auto j{0}; j < basis_size; ++j)
-            phi_i_K_phi_j(i, j) = adjoint_basis[i].dot(K * basis[j]);
-
-        if (i == 0)
-            beta_0(i) = 0; // a_0
-        else
-            beta_0(i) = adjoint_basis[i].dot(delta_L * basis[0]) / (eigen_values[0] * phi_i_M_phi_i(i) - phi_i_K_phi_j(i, i));
-
-        // std::cout << "adjoint_basis[i].dot(delta_L * basis[0]): " << adjoint_basis[i].dot(delta_L * basis[0]) << std::endl;
-        // std::cout << "phi_i_K_phi_j(i, i): " << phi_i_K_phi_j(i, i) << std::endl;
-        // std::cout << "phi_i_M_phi_i(i): " << phi_i_M_phi_i(i) << std::endl;
-
-        power_pert(i) = norm_pert.dot(basis[i]);
+        {
+            if (i == j)
+                A(i, j) = adjoint_basis[i].dot((eigen_values[0] * M - K) * basis[i]);
+            else
+                A(i, j) = -adjoint_basis[i].dot(K * basis[j]);
+        }     
     }
 
+    Eigen::VectorXd beta = A.fullPivLu().solve(b);
 
-    float r_tol_ev = 1e5;
-    int k = 0;
-    float tol_eigen_value = 1e-8 ;
-    Eigen::VectorXd beta = beta_0;
-    // std::cout << "beta_0: " << beta_0 << std::endl;
-    while (r_tol_ev > tol_eigen_value && k < max_iter)
-    {
-        // a_0 calculation
-        beta(0) = power - power_pert(0);
-        for (auto i{1}; i < basis_size; ++i)
-            beta(0) -= power_pert(i) * beta[i];
-        beta(0) /= power_pert(0);
-
-        // beta update
-        for (auto i{1}; i < basis_size; ++i)
-        {   
-            double delta_beta_i = 0. ; 
-            for (auto j{0}; i < basis_size; ++i)
-                {
-                    if (i != j)
-                        delta_beta_i += beta(i) * phi_i_K_phi_j(i, j) ;
-                }
-            beta(i) = beta_0(i) - delta_beta_i / (eigen_values[0] * phi_i_M_phi_i(i) - phi_i_K_phi_j(i, i)) ;
-            // std::cout << "delta_beta_i: " << delta_beta_i << std::endl;
-        }
-            
-
-        // eigenvalue update
-        double C_k = 0;
-        for (auto i{1}; i < basis_size; ++i)
-            C_k += beta(i) * phi_i_K_phi_j(0, i);
-
-        delta_eval = (A + C_k) / B;
-        r_tol_ev = std::abs(delta_eval - delta_eval_prec);
-        delta_eval_prec = delta_eval;
-
-        spdlog::debug("Estimated error in iteration {} (delta eigen value = {:.5e}): {:.2e}", k, delta_eval, r_tol_ev);
-        spdlog::debug("A = {:.5e} / B = {:.5e} / Ck = {:.5e}", A, B, C_k);
-        k++;
-    }
-
-    // a_0 calculation
-    beta(0) = power - power_pert(0);
+    // eigenvalue update
+    double C_k = 0;
     for (auto i{1}; i < basis_size; ++i)
-        beta(0) -= power_pert(i) * beta[i];
-    beta(0) /= power_pert(0);
-    // std::cout << "beta: " << beta << std::endl;
+        C_k += beta(i) * adjoint_basis[0].dot(K * basis[i]);
+
+    spdlog::debug("Ck = {:.5e}) ", C_k);
+
+    double delta_eval = (adjoint_basis[0].dot(delta_L * basis[0]) + C_k) / (adjoint_basis[0].dot(M * basis[0]));
+    spdlog::debug("delta_eval = {:.5e}) ", delta_eval);
 
     // flux recons
     Eigen::VectorXd ev_recons = basis[0]; // copy
     for (auto k{0}; k < basis_size; ++k)
         ev_recons += beta(k) * basis[k];
+
 
     auto eval_recons = eigen_values[0] + delta_eval;
 
@@ -656,7 +715,7 @@ std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> firstOrderPerturbationRange
     solver_pert.pushEigenValue(eval_recons);
     solver_pert.pushEigenVector(ev_recons);
 
-    beta(0) -= 1.;
+    // beta(0) -= 1.;
     return std::make_tuple(ev_recons, eval_recons, beta);
 }
 

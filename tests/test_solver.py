@@ -50,19 +50,19 @@ def test_isOrthogonal(macrolib_1d, datadir):
     assert s.isOrthogonal() == False
 
 
-def test_handleDenegeratedEigenvalues(macrolib_1d_refine, datadir):
-    solver.init_slepc()
-    set_log_level(log_level.debug)
-    macrolib, x_mesh = macrolib_1d_refine
-    s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
-    s.solve(nb_eigen_values=60)
-    # print(s.isOrthogonal())
+# def test_handleDegeneratedEigenvalues(macrolib_1d_refine, datadir):
+#     solver.init_slepc()
+#     set_log_level(log_level.debug)
+#     macrolib, x_mesh = macrolib_1d_refine
+#     s = solver.SolverFullSlepc(x_mesh, macrolib, -1., -1.)
+#     s.solve(nb_eigen_values=60)
+#     # print(s.isOrthogonal())
 
-    s.handleDenegeratedEigenvalues()  # todo: find a test which need this function
-    # print(s.isOrthogonal())
+#     s.handleDegeneratedEigenvalues()  # todo: find a test which need this function
+#     # print(s.isOrthogonal())
 
-    # s.solve(nb_eigen_values=20)
-    # assert s.handleDenegeratedEigenvalues() == False
+#     # s.solve(nb_eigen_values=20)
+#     # assert s.handleDegeneratedEigenvalues() == False
 
 
 def test_solverPI_1d(macrolib_1d, datadir):

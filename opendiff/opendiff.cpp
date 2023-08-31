@@ -173,8 +173,6 @@ PYBIND11_MODULE(opendiff, m)
         .def("normPhiStarMPhi", &solver::Solver::normPhiStarMPhi)
         .def("normPhi", &solver::Solver::normPhi)
         .def("removeEigenVectors", &solver::Solver::removeEigenVectors)
-        .def("handleDenegeratedEigenvalues", &solver::Solver::handleDenegeratedEigenvalues,
-             py::arg("max_eps") = 1e-6)
         .def("isOrthogonal", &solver::Solver::isOrthogonal,
              py::arg("max_eps") = 1e-6, py::arg("raise_error") = false);
 
@@ -259,11 +257,11 @@ PYBIND11_MODULE(opendiff, m)
                      py::arg("max_eps") = 1e-6, py::arg("raise_error") = false);
     perturbation.def("handleDegeneratedEigenvalues", &perturbation::handleDegeneratedEigenvalues<solver::SolverFull<SpMat>>);
     perturbation.def("firstOrderPerturbation", &perturbation::firstOrderPerturbation<solver::SolverFull<SpMat>>);
-    perturbation.def("createAdjointBasis", &perturbation::createAdjointBasis<solver::SolverFull<SpMat>, solver::SolverCondPowerIt>);
+    // perturbation.def("exactPerturbationBasis", &perturbation::createAdjointBasis<solver::SolverFull<SpMat>, solver::SolverCondPowerIt>);
     perturbation.def("firstOrderPerturbationEpGPT", &perturbation::firstOrderPerturbationEpGPT<solver::SolverFull<SpMat>>);
     perturbation.def("firstOrderPerturbationRangeFinding", &perturbation::firstOrderPerturbationRangeFinding<solver::SolverFull<SpMat>>);
     perturbation.def("highOrderPerturbation", &perturbation::highOrderPerturbationPython<solver::SolverFull<SpMat>>);
-    perturbation.def("fullOrderPerturbation", &perturbation::fullOrderPerturbation<solver::SolverFull<SpMat>>);
+    perturbation.def("exactPerturbation", &perturbation::exactPerturbation<solver::SolverFull<SpMat>>);
     perturbation.def("firstOrderGPT", py::overload_cast<const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &, const solver::SolverFull<SpMat> &,
                                                         Eigen::VectorXd &, Eigen::VectorXd &,
                                                         Eigen::VectorXd &, Eigen::VectorXd &,

@@ -241,8 +241,6 @@ namespace solver
                            std::string inner_solver = "BiCGSTAB", std::string inner_precond = "",
                            std::string acceleration = "") = 0;
 
-        void handleDenegeratedEigenvalues(double max_eps = 1e-6);
-
         bool isOrthogonal(double max_eps = 1e-6, bool raise_error = false);
 
         // todo: use getPower(Tensor4Dconst

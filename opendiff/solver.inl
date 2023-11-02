@@ -2485,7 +2485,7 @@ void SolverCondFixedSource::solveChebyshevFixedDR(double tol, const Eigen::Vecto
         if (isAdjoint())
         {
             Eigen::VectorXd v_rev = reverseEigenVectorEnergyCopy(v);
-            psi -= (v_rev.dot(K_ev)) / s_star_K_s * psi_v;
+            psi -= (v_rev.dot(K_ev)) / s_star_K_s * psi_v; // j'ai un doute , il faudrait le faire sur la source de fission ! 
         }
         else
             psi -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * psi_v;

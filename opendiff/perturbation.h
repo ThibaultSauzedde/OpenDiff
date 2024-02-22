@@ -158,7 +158,7 @@ namespace perturbation
 
         std::tuple<Eigen::VectorXd, double, vecd> firstOrderPerturbation(T &solver_pert, int basis_size=-1);
 
-        std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> highOrderPerturbation(T &solver_pert, double tol_eigen_value = 1e-5, int max_iter = 100, int basis_size=-1);
+        std::tuple<Eigen::VectorXd, double, Eigen::VectorXd> exactPerturbation(T &solver_pert, double tol_eigen_value = 1e-5, int max_iter = 100, int basis_size=-1);
 
         auto &getBasis() { return m_basis; };
         auto &getImportances() { return m_gamma_star; };
@@ -177,6 +177,47 @@ namespace perturbation
         void dump(std::string file_name);
 
         void load(std::string file_name);
+    };
+
+
+    class EpGPTSVD : public EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>
+    {
+    protected:
+
+        vecvec m_delta_v{};
+        // const int m_nb_trial = 10;
+        const int m_nb_trial = 10;
+        vecvec m_trials{};
+
+    public:
+
+        using EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::EpGPT;
+
+
+        void createBasis();
+        
+        Eigen::VectorXd getBasisPrecisions();
+
+        int getBasisSize(double precision);
+
+        void calcSnapshots(int size, double pert_xs_sigma,
+                          double pert_x_sigma, double pert_y_sigma, double pert_z_sigma,
+                          vector_tuple control_rod_pos, std::string rod_middle, std::string unroded_middle,
+                          double power_W, double tol, double tol_eigen_vectors, double ev0,
+                          double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
+                          std::string acceleration, bool store_solvers = false);             
+
+        void dump(std::string file_name);
+
+        void load(std::string file_name);
+
+        auto &getDeltaV() { return m_delta_v; };
+
+        void setDeltaV(vecvec delta_v) { m_delta_v = delta_v; };
+
+        auto &getTrials() { return m_trials; };
+
+        void setTrials(vecvec trials) { m_trials = trials; };
     };
 
 #include "perturbation.inl"

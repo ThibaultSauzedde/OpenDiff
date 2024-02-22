@@ -150,7 +150,6 @@ void diff_scatering_op_triplet(std::vector<Triplet> &coefficients, const int i_g
     {
         if (xs[i] < 10 * std::numeric_limits<double>::lowest())
             continue ;
-
         auto t = Triplet(offset_i + i, offset_j + i, xs[i] * volumes_1d[i]);
         coefficients.push_back(t);
     }

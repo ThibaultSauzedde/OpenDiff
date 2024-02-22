@@ -36,6 +36,8 @@ namespace mat
             double z1 = std::get<4>(rod_description);
             double z2 = std::get<5>(rod_description);
 
+            // it should be upper_bound ?? 
+            //todo: test it
             int x1_index = std::distance(x.begin(), std::lower_bound(x.begin(), x.end(), x1 - 1e-5));
             int x2_index = std::distance(x.begin(), std::lower_bound(x.begin(), x.end(), x2 - 1e-5));
             int y1_index = std::distance(y.begin(), std::lower_bound(y.begin(), y.end(), y1 - 1e-5));
@@ -44,19 +46,19 @@ namespace mat
             int z2_index = std::distance(z.begin(), std::lower_bound(z.begin(), z.end(), z2 - 1e-5));
 
             if (x1_index == static_cast<int>(x.size()))
-                throw std::invalid_argument("x1 cannot is not in the range of x.");
+                throw std::invalid_argument("x1 is not in the range of x.");
             if (x2_index == static_cast<int>(x.size()))
-                throw std::invalid_argument("x2 cannot is not in the range of x.");
+                throw std::invalid_argument("x2 is not in the range of x.");
 
             if (y1_index == static_cast<int>(y.size()))
-                throw std::invalid_argument("y1 cannot is not in the range of y.");
+                throw std::invalid_argument("y1 is not in the range of y.");
             if (y2_index == static_cast<int>(y.size()))
-                throw std::invalid_argument("y2 cannot is not in the range of y.");
+                throw std::invalid_argument("y2 is not in the range of y.");
 
             if (z1_index == static_cast<int>(z.size()))
-                throw std::invalid_argument("z1 cannot is not in the range of z.");
+                throw std::invalid_argument("z1 is not in the range of z.");
             if (z2_index == static_cast<int>(z.size()))
-                throw std::invalid_argument("z2 cannot is not in the range of z.");
+                throw std::invalid_argument("z2 is not in the range of z.");
 
             int z_index = std::distance(z.begin(), std::lower_bound(z.begin(), z.end(), rod_zpos -1e-5));
 

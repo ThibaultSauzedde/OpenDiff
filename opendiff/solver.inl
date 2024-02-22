@@ -1407,6 +1407,19 @@ inline SolverFullFixedSource::SolverFullFixedSource(const SolverFull<SpMat> &sol
     m_source = source;
 }
 
+inline SolverFullFixedSource::SolverFullFixedSource(const SolverCond<SpMat> &solver, const SolverCond<SpMat> &solver_star, const Eigen::VectorXd &source)
+{
+    m_volumes = solver.getVolumes();
+    m_K = solver.getK();
+    m_M = solver.getM();
+    m_macrolib = solver.getMacrolib();
+    m_eigen_values = solver.getEigenValues();
+    m_eigen_vectors = solver.getEigenVectors();
+    m_eigen_vectors_star = solver_star.getEigenVectors();
+    m_dominance_ratio = solver.getDominanceRatio();
+    m_source = source;
+}
+
 inline void SolverFullFixedSource::solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                                          double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
                                          std::string acceleration)
@@ -1427,21 +1440,6 @@ inline void SolverFullFixedSource::solve(double tol, double tol_eigen_vectors, i
                                                                    tol_inner, outer_max_iter, inner_max_iter);
     else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
         SolverFullFixedSource::solveChebyshev<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, v0,
-                                                                                                    tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "SparseLU")
-        SolverFullFixedSource::solveChebyshevFixedDR<Eigen::SparseLU<SpMat>>(tol, v0,
-                                                                      tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "LeastSquaresConjugateGradient" && inner_precond.empty())
-        SolverFullFixedSource::solveChebyshevFixedDR<Eigen::LeastSquaresConjugateGradient<SpMat>>(tol, v0,
-                                                                                           tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "BiCGSTAB" && inner_precond.empty())
-        SolverFullFixedSource::solveChebyshevFixedDR<Eigen::BiCGSTAB<SpMat>>(tol, v0,
-                                                                      tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "GMRES" && inner_precond.empty())
-        SolverFullFixedSource::solveChebyshevFixedDR<Eigen::GMRES<SpMat>>(tol, v0,
-                                                                   tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
-        SolverFullFixedSource::solveChebyshevFixedDR<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, v0,
                                                                                                     tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "SparseLU")
         SolverFullFixedSource::solveUnaccelerated<Eigen::SparseLU<SpMat>>(tol, v0,
@@ -1481,7 +1479,7 @@ void SolverFullFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
         throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
     else
         v /= v.norm();
-        
+
     Eigen::VectorXd b = m_K * v / m_eigen_values[0] + m_source;
     Eigen::VectorXd b_prec(b);
 
@@ -1508,22 +1506,23 @@ void SolverFullFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
         spdlog::debug("----------------------------------------------------");
         spdlog::debug("Outer iteration {}", i);
 
-        b_prec = b ; 
+        b_prec = b;
 
         // inner iteration
         v = solveInner<T>(solver, b, v);
 
-
         // decontamination of gamma
         // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
         if (isAdjoint())
-            v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+        {
+            double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s ;
+            v -= lambda_proj * m_eigen_vectors_star[0];
+            spdlog::debug("lambda_proj = : {}", lambda_proj);
+        }
         else
             v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
-        
-        b = m_K * v / m_eigen_values[0] + m_source;
 
-        // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
+        b = m_K * v / m_eigen_values[0] + m_source;
 
         // convergence computation
         r_tol_ev = (b - b_prec).norm() / std::sqrt(b.dot(b_prec));
@@ -1535,7 +1534,7 @@ void SolverFullFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
     }
     spdlog::debug("----------------------------------------------------");
     m_gamma = v;
-    m_nb_outer_iterations = i ; 
+    m_nb_outer_iterations = i;
     spdlog::info("Number of outter iteration: {}", i);
     spdlog::info("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
     spdlog::info("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
@@ -1543,164 +1542,11 @@ void SolverFullFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
     spdlog::info("Orthogonality tests: ");
     if (isAdjoint())
     {
-        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
-        spdlog::info("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
+        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / s_star_K_s);
     }
     else
     {
-        spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / v.dot(v));
-        spdlog::info("Gamma Phi : {}", v.dot(m_eigen_vectors[0]) / v.dot(v));
-    }
-}
-
-template <class T>
-void SolverFullFixedSource::solveChebyshevFixedDR(double tol, const Eigen::VectorXd &v0,
-                                           double tol_inner, int outer_max_iter, int inner_max_iter)
-{
-
-    int pblm_dim = static_cast<int>(m_M.rows());
-    int v0_size = static_cast<int>(v0.size());
-
-    float r_tol_ev = 1e5;
-    float r_tol_ev2 = 1e5;
-
-    int nb_free_iter = 4;
-    int nb_chebyshev_cycle_min_iter = 4;
-
-    Eigen::VectorXd v(v0);
-
-    if (v0_size == 0)
-        v.setConstant(pblm_dim, 1.);
-    else if (v0_size != pblm_dim)
-        throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
-    else
-        v /= v.norm();
-
-    Eigen::VectorXd v_prec(v);
-    Eigen::VectorXd v_prec_prec(v);
-
-    Eigen::VectorXd b = m_K * v / m_eigen_values[0] + m_source;
-    Eigen::VectorXd b_prec(b);
-
-    spdlog::debug("Tolerance in outter iteration (gamma): {:.2e}", tol);
-    spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
-    spdlog::debug("Max. outer iteration : {}", outer_max_iter);
-    spdlog::debug("Max. inner iteration : {}", inner_max_iter);
-
-    double alpha;
-    double beta;
-
-    T solver;
-    initInnerSolver<T>(solver, tol_inner, inner_max_iter);
-    solver.compute(m_M);
-
-    auto K = m_K;
-    if (isAdjoint())
-        K = m_K.adjoint();
-
-    double s_star_K_s = (m_eigen_vectors_star[0].dot(K * m_eigen_vectors[0]));
-    // double s_star_K_s = (m_eigen_vectors[0].dot(m_eigen_vectors[0])); // also works
-
-    // outer iteration
-    int i = 1; // total
-    int f = 1; // free
-    int p = 1; // acc.
-    
-    spdlog::debug("Dominance ratio used = {}", m_dominance_ratio);
-
-    while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter)
-    // while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter) // in pratice r_tol_ev almost never converge...
-    {
-        spdlog::debug("----------------------------------------------------");
-        spdlog::debug("Outer iteration {}", i);
-
-        v_prec_prec = v_prec;
-        v_prec = v;
-        b_prec = b ; 
-
-        // inner iteration
-        v = solveInner<T>(solver, b, v);
-
-        // free iteration
-        if (f <= nb_free_iter || m_dominance_ratio < 0.5 || m_dominance_ratio > 1 || std::isnan(m_dominance_ratio))
-        {
-            spdlog::debug("Free outer iteration {}", i);
-
-            // decontamination of gamma
-            // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
-            p = 1;
-            f++;
-        }
-        // chebyshev acc.
-        else
-        {
-            spdlog::debug("Cheb outer iteration {} (cycle {}/{})", i, p, nb_chebyshev_cycle_min_iter);
-            if (p == 1) // first iteration in the cycle
-            {
-                alpha = 2 / (2 - m_dominance_ratio);
-                beta = 0;
-            }
-            else
-            {
-                double gamma = std::acosh(2 / m_dominance_ratio - 1);
-                spdlog::debug("gamma = {}", gamma);
-                alpha = (4 / m_dominance_ratio) * std::cosh((p - 1) * gamma) / std::cosh(p * gamma);
-                beta = std::cosh((p - 2) * gamma) / std::cosh(p * gamma);
-                // beta = (1 - m_dominance_ratio / 2.) - 1 / alpha; //(1 - m_dominance_ratio / 2.) * alpha - 1;
-            }
-            spdlog::debug("alpha = {}", alpha);
-            spdlog::debug("beta = {}", beta);
-
-            v = v_prec + alpha * (v - v_prec) + beta * (v_prec - v_prec_prec);
-            p++;
-        }
-
-        if (p >= (nb_chebyshev_cycle_min_iter + 1)) // possible end of the acceleration cycle
-            p = 1 ;
-
-        if (isAdjoint() )
-            v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
-        else
-            v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
-        // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
-
-        b = m_K * v / m_eigen_values[0] + m_source;
-        r_tol_ev = (b - b_prec).norm() / std::sqrt(b.dot(b_prec));
-
-        // convergence computation
-        r_tol_ev2 = ((b.array() / b_prec.array()).maxCoeff<Eigen::PropagateNumbers>() - (b.array() / b_prec.array()).minCoeff<Eigen::PropagateNumbers>()) / 2.0 ;
-
-        spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
-        spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
-        i++;
-    }
-    spdlog::debug("----------------------------------------------------");
-    
-    spdlog::info("Number of outter iteration: {}", i);
-    spdlog::info("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
-    spdlog::info("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
-
-    // decontamination of gamma
-    // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
-    if (isAdjoint())
-        v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
-    else
-        v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
-        
-    // v /= v.norm();
-    m_gamma = v;
-    m_nb_outer_iterations = i ; 
-
-    spdlog::debug("Orthogonality tests: ");
-    if (isAdjoint())
-    {
-        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
-        spdlog::info("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
-    }
-    else
-    {
-        spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / v.dot(v));
-        spdlog::info("Gamma Phi : {}", v.dot(m_eigen_vectors[0]) / v.dot(v));
+        spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / s_star_K_s);
     }
 }
 
@@ -1769,7 +1615,7 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
 
         v_prec_prec = v_prec;
         v_prec = v;
-        b_prec = b ; 
+        b_prec = b;
         r_tol_ev_prec = r_tol_ev;
 
         // inner iteration
@@ -1782,11 +1628,14 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
 
             // decontamination of gamma
             // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
-            if (isAdjoint() )
-                v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+            if (isAdjoint())
+            {
+                double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s;
+                v -= lambda_proj * m_eigen_vectors_star[0];
+                spdlog::debug("lambda_proj = : {}", lambda_proj);
+            }
             else
                 v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
-            // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
 
             b = m_K * v / m_eigen_values[0] + m_source;
             r_tol_ev = (b - b_prec).norm() / std::sqrt(b.dot(b_prec));
@@ -1822,7 +1671,11 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
             // decontamination of gamma
             // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
             if (isAdjoint())
-                v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+            {
+                double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s;
+                v -= lambda_proj * m_eigen_vectors_star[0];
+                spdlog::debug("lambda_proj = : {}", lambda_proj);
+            }
             else
                 v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
             // v -= (v.dot(m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors[0]; //  also works
@@ -1873,7 +1726,7 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
             spdlog::debug("Dominance ratio used = {}", dominance_ratio);
         }
         // convergence computation
-        r_tol_ev2 = ((b.array() / b_prec.array()).maxCoeff<Eigen::PropagateNumbers>() - (b.array() / b_prec.array()).minCoeff<Eigen::PropagateNumbers>()) / 2.0 ;
+        r_tol_ev2 = ((b.array() / b_prec.array()).maxCoeff<Eigen::PropagateNumbers>() - (b.array() / b_prec.array()).minCoeff<Eigen::PropagateNumbers>()) / 2.0;
 
         spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
         spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
@@ -1887,24 +1740,26 @@ void SolverFullFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     // decontamination of gamma
     // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
     if (isAdjoint())
-        v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+    {
+        double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s;
+        v -= lambda_proj * m_eigen_vectors_star[0];
+        spdlog::debug("lambda_proj = : {}", lambda_proj);
+    }
     else
         v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
-        
+
     // v /= v.norm();
     m_gamma = v;
-    m_nb_outer_iterations = i ; 
+    m_nb_outer_iterations = i;
 
     spdlog::debug("Orthogonality tests: ");
     if (isAdjoint())
     {
-        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
-        spdlog::info("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
+        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / s_star_K_s);
     }
     else
     {
-        spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / v.dot(v));
-        spdlog::info("Gamma Phi : {}", v.dot(m_eigen_vectors[0]) / v.dot(v));
+        spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / s_star_K_s);
     }
 }
 
@@ -1943,7 +1798,7 @@ inline void SolverCondFixedSource::solve(double tol, double tol_eigen_vectors, i
                                                                       tol_inner, outer_max_iter, inner_max_iter);
     else if (acceleration == "chebyshev" && inner_solver == "ConjugateGradient" && inner_precond.empty())
         SolverCondFixedSource::solveChebyshev<Eigen::ConjugateGradient<SpMat, Eigen::Lower | Eigen::Upper>>(tol, v0,
-                                                                               tol_inner, outer_max_iter, inner_max_iter);
+                                                                                                            tol_inner, outer_max_iter, inner_max_iter);
     else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond.empty())
         SolverCondFixedSource::solveChebyshev<Eigen::BiCGSTAB<SpMat>>(tol, v0,
                                                                       tol_inner, outer_max_iter, inner_max_iter);
@@ -1953,22 +1808,7 @@ inline void SolverCondFixedSource::solve(double tol, double tol_eigen_vectors, i
     else if (acceleration == "chebyshev" && inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
         SolverCondFixedSource::solveChebyshev<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, v0,
                                                                                                     tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "SparseLU")
-        SolverCondFixedSource::solveChebyshevFixedDR<Eigen::SparseLU<SpMat>>(tol, v0,
-                                                                      tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "ConjugateGradient" && inner_precond.empty())
-        SolverCondFixedSource::solveChebyshevFixedDR<Eigen::ConjugateGradient<SpMat, Eigen::Lower | Eigen::Upper>>(tol, v0,
-                                                                                      tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "BiCGSTAB" && inner_precond.empty())
-        SolverCondFixedSource::solveChebyshevFixedDR<Eigen::BiCGSTAB<SpMat>>(tol, v0,
-                                                                      tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "GMRES" && inner_precond.empty())
-        SolverCondFixedSource::solveChebyshevFixedDR<Eigen::GMRES<SpMat>>(tol, v0,
-                                                                   tol_inner, outer_max_iter, inner_max_iter);
-    else if (acceleration == "chebyshevFixedDR" && inner_solver == "BiCGSTAB" && inner_precond == "IncompleteLUT")
-        SolverCondFixedSource::solveChebyshevFixedDR<Eigen::BiCGSTAB<SpMat, Eigen::IncompleteLUT<double>>>(tol, v0,
-                                                                                                    tol_inner, outer_max_iter, inner_max_iter);
-    else if (inner_solver == "SparseLU")
+    else if(inner_solver == "SparseLU")
         SolverCondFixedSource::solveUnaccelerated<Eigen::SparseLU<SpMat>>(tol, v0,
                                                                           tol_inner, outer_max_iter, inner_max_iter);
     else if (inner_solver == "ConjugateGradient" && inner_precond.empty())
@@ -2027,15 +1867,12 @@ void SolverCondFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
     }
 
     auto K = m_K;
-    Eigen::VectorXd psi_v;
     if (isAdjoint())
     {
         K = m_K.adjoint();
         reverseEigenVectorEnergy(m_source);
-        psi_v = m_K * m_eigen_vectors_star[0];
     }
     else
-        psi_v = m_K.adjoint() * (m_eigen_vectors[0]);
     Eigen::VectorXd K_ev = K * m_eigen_vectors[0];
 
     double s_star_K_s = (m_eigen_vectors_star[0].dot(K * m_eigen_vectors[0]));
@@ -2055,43 +1892,47 @@ void SolverCondFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
         {
             // auto phi_g = getEigenVector(g+1, v) ;
             Eigen::VectorBlock<Eigen::VectorXd> phi_g = v(Eigen::seqN(dim_xyz * g, dim_xyz));
-            Eigen::VectorXd b = m_chi[g] * psi / m_eigen_values[0] + m_source(Eigen::seqN(dim_xyz * g, dim_xyz));
+            Eigen::VectorXd b = m_chi[g] * psi / m_eigen_values[0] + m_source(Eigen::seqN(dim_xyz * g, dim_xyz)) ;
 
             for (int gp{0}; gp < m_macrolib.getNbGroups(); ++gp)
             {
                 if (g <= gp)
                     continue;
-                b += m_S[gp][g] * getEigenVector(gp + 1, v);
+                b += m_S[gp][g] * getEigenVector(gp + 1, v) ;
             }
 
             spdlog::debug("Inner iteration for group {}", g + 1);
             phi_g = solveInner<T>(solvers[g], b, phi_g);
         }
         
-        psi = getFissionSource(v) ;
-
 
         // decontamination of gamma
         // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
         if (isAdjoint())
         {
-            Eigen::VectorXd v_rev = reverseEigenVectorEnergyCopy(v);
-            psi -= (v_rev.dot(K_ev)) / s_star_K_s * psi_v;
+            reverseEigenVectorEnergy(v);
+            double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s;
+            v -= lambda_proj * m_eigen_vectors_star[0];
+            spdlog::debug("lambda_proj = : {}", lambda_proj);
+                // v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+            reverseEigenVectorEnergy(v);
         }
         else
-            psi -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * psi_v;
-            
+            v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0]; // todo check it
+
+
+        psi = getFissionSource(v);            
+
         // convergence computation
         r_tol_ev2 = ((psi.array() / psi_prec.array()).maxCoeff<Eigen::PropagateNumbers>() - (psi.array() / psi_prec.array()).minCoeff<Eigen::PropagateNumbers>()) / 2.;
         r_tol_ev = (psi - psi_prec).norm() / std::sqrt(psi.dot(psi_prec));
 
         spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
-        spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
         spdlog::debug("Eigen vector norm: {:.2e}", v.norm());
         i++;
     }
     spdlog::debug("----------------------------------------------------");
-    
+
     if (isAdjoint())
     {
         reverseEigenVectorEnergy(v);
@@ -2100,28 +1941,26 @@ void SolverCondFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd
 
     // decontamination of gamma
     if (isAdjoint())
-        v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+    {
+        double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s;
+        v -= lambda_proj * m_eigen_vectors_star[0];
+        spdlog::debug("lambda_proj = : {}", lambda_proj);
+    }
+        // v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
     else
-        v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
+        v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0]; // todo check it 
 
     m_gamma = v;
     m_nb_outer_iterations = i ; 
 
     spdlog::info("Number of outter iteration: {}", i);
     spdlog::info("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
-    spdlog::info("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
 
     spdlog::info("Orthogonality tests: ");
     if (isAdjoint())
-    {
-        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
-        spdlog::info("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
-    }
+        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / s_star_K_s);
     else
-    {
         spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / v.dot(v));
-        spdlog::info("Gamma Phi : {}", v.dot(m_eigen_vectors[0]) / v.dot(v));
-    }
 }
 
 template <class T>
@@ -2173,15 +2012,11 @@ void SolverCondFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     }
 
     auto K = m_K;
-    Eigen::VectorXd psi_v;
     if (isAdjoint())
     {   
         K = m_K.adjoint();
         reverseEigenVectorEnergy(m_source);
-        psi_v = m_K * m_eigen_vectors_star[0];
     }
-    else
-        psi_v = m_K.adjoint() * (m_eigen_vectors[0]);
 
     double s_star_K_s = (m_eigen_vectors_star[0].dot(K * m_eigen_vectors[0]));
     Eigen::VectorXd K_ev = K * m_eigen_vectors[0] ;
@@ -2222,19 +2057,21 @@ void SolverCondFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
             phi_g = solveInner<T>(solvers[g], b, phi_g);
         }
 
-        psi = getFissionSource(v) ;
-
         // decontamination of gamma
         // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
-        // todo: make the decontamination with the sub matrices 
         if (isAdjoint())
-           {
-            Eigen::VectorXd v_rev = reverseEigenVectorEnergyCopy(v);
-            psi -= (v_rev.dot(K_ev)) / s_star_K_s * psi_v;
-            }
+        {
+            reverseEigenVectorEnergy(v);
+            double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s;
+            v -= lambda_proj * m_eigen_vectors_star[0];
+            spdlog::debug("lambda_proj = : {}", lambda_proj);
+            // v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+            reverseEigenVectorEnergy(v);
+        }
         else
-            psi -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * psi_v;
-        
+            v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0]; // todo check it
+
+        psi = getFissionSource(v);
 
         // free iteration
         if (f <= nb_free_iter || dominance_ratio < 0.5 || dominance_ratio > 1 || std::isnan(dominance_ratio))
@@ -2360,7 +2197,12 @@ void SolverCondFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
     // decontamination of gamma
     // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
     if (isAdjoint())
-        v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
+    {
+        double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s;
+        v -= lambda_proj * m_eigen_vectors_star[0];
+        spdlog::debug("lambda_proj = : {}", lambda_proj);
+    }
+        // v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
     else
         v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
 
@@ -2370,201 +2212,87 @@ void SolverCondFixedSource::solveChebyshev(double tol, const Eigen::VectorXd &v0
 
     spdlog::debug("Orthogonality tests: ");
     if (isAdjoint())
-    {
-        spdlog::info("Gamma* K Phi / v v: {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
-        spdlog::info("Gamma* K Phi / Phi Phi: {}", v.dot(K * m_eigen_vectors[0]) / m_eigen_vectors[0].dot(m_eigen_vectors[0]));
-        spdlog::info("Gamma* Phi* / v v: {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
-        spdlog::info("Gamma* Phi* / Phi* Phi*: {}", v.dot(m_eigen_vectors_star[0]) / m_eigen_vectors_star[0].dot(m_eigen_vectors_star[0]));
-    }
+        spdlog::info("Gamma* K Phi / v v: {}", v.dot(K * m_eigen_vectors[0]) / s_star_K_s);
     else
-    {
-        spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / v.dot(v));
-        spdlog::info("Gamma Phi : {}", v.dot(m_eigen_vectors[0]) / v.dot(v));
-    }
+        spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / s_star_K_s);
 }
 
+// template <class T>
+// void SolverFullFixedSource::solveUnaccelerated(double tol, const Eigen::VectorXd &v0,
+//                                                double tol_inner, int outer_max_iter, int inner_max_iter)
+// {
 
+//     int pblm_dim = static_cast<int>(m_M.rows());
+//     int v0_size = static_cast<int>(v0.size());
 
-template <class T>
-void SolverCondFixedSource::solveChebyshevFixedDR(double tol, const Eigen::VectorXd &v0,
-                                           double tol_inner, int outer_max_iter, int inner_max_iter)
-{
+//     float r_tol_ev = 1e5;
 
-    int pblm_dim = static_cast<int>(m_M.rows());
-    int v0_size = static_cast<int>(v0.size());
-    auto dim = m_macrolib.getDim();
-    auto dim_xyz = std::get<2>(dim) * std::get<1>(dim) * std::get<0>(dim);
+//     Eigen::VectorXd v(v0);
 
-    float r_tol_ev = 1e5;
-    float r_tol_ev2 = 1e5;
+//     if (v0_size == 0)
+//         v.setConstant(pblm_dim, 1.);
+//     else if (v0_size != pblm_dim)
+//         throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
+//     else
+//         v /= v.norm();
+        
+//     Eigen::VectorXd v_prec(v);
 
-    int nb_free_iter = 10;
-    int nb_chebyshev_cycle_min_iter = 4;
+//     spdlog::debug("Tolerance in outter iteration (gamma): {:.2e}", tol);
+//     spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
+//     spdlog::debug("Max. outer iteration : {}", outer_max_iter);
+//     spdlog::debug("Max. inner iteration : {}", inner_max_iter);
 
-    Eigen::VectorXd v(v0);
+//     T solver;
+//     initInnerSolver<T>(solver, tol_inner, inner_max_iter);
+//     solver.compute(m_K - m_M * m_eigen_values[0]);
 
-    if (v0_size == 0)
-        v.setConstant(pblm_dim, 1.);
-    else if (v0_size != pblm_dim)
-        throw std::invalid_argument("The size of the initial vector must be identical to the matrix row or column size!");
-    else
-        v /= v.norm();
+//     auto K = m_K;
+//     if (isAdjoint())
+//         K = m_K.adjoint();
 
-    Eigen::VectorXd psi = getFissionSource(v);
-    Eigen::VectorXd psi_prec = Eigen::VectorXd{psi};
-    Eigen::VectorXd psi_prec_prec = Eigen::VectorXd{psi};
+//     double s_star_K_s = (m_eigen_vectors_star[0].dot(K * m_eigen_vectors[0]));
 
-    spdlog::debug("Tolerance in outter iteration (gamma): {:.2e}", tol);
-    spdlog::debug("Tolerance in inner iteration : {:.2e}", tol_inner);
-    spdlog::debug("Max. outer iteration : {}", outer_max_iter);
-    spdlog::debug("Max. inner iteration : {}", inner_max_iter);
+//     // outer iteration
+//     int i = 0;
+//     while ((r_tol_ev > tol && i < outer_max_iter) || std::isnan(r_tol_ev))
+//     {
+//         spdlog::debug("----------------------------------------------------");
+//         spdlog::debug("Outer iteration {}", i);
 
-    double alpha;
-    double beta;
+//         v_prec = v ; 
 
-    std::vector<T> solvers(m_macrolib.getNbGroups());
-    // init fore the inner iterations
-    for (int g{0}; g < m_macrolib.getNbGroups(); ++g)
-    {
-        initInnerSolver<T>(solvers[g], tol_inner, inner_max_iter);
-        solvers[g].compute(m_A[g]);
-    }
+//         // inner iteration
+//         v = solveInner<T>(solver, m_source, v);
 
-    auto K = m_K;
-    Eigen::VectorXd psi_v;
-    if (isAdjoint())
-    {   
-        K = m_K.adjoint();
-        reverseEigenVectorEnergy(m_source);
-        psi_v = m_K * m_eigen_vectors_star[0];
-    }
-    else
-        psi_v = m_K.adjoint() * (m_eigen_vectors[0]);
-
-    Eigen::VectorXd K_ev = K * m_eigen_vectors[0] ;
-    double s_star_K_s = (m_eigen_vectors_star[0].dot(K * m_eigen_vectors[0]));
-    // double s_star_K_s = (m_eigen_vectors[0].dot(m_eigen_vectors[0])); // also works
-
-    // outer iteration
-    int i = 1; // total
-    int f = 1; // free
-    int p = 1; // acc.
-
-    spdlog::debug("Dominance ratio used = {}", m_dominance_ratio);
-
-    while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter)
-    // while ((r_tol_ev > tol || r_tol_ev2 > tol) && i < outer_max_iter) // in pratice r_tol_ev almost never converge...
-    {
-        spdlog::debug("----------------------------------------------------");
-        spdlog::debug("Outer iteration {}", i);
-
-        psi_prec_prec = psi_prec;
-        psi_prec = psi;
-
-        // inner iteration
-        for (int g{0}; g < m_macrolib.getNbGroups(); ++g)
-        {
-            // auto phi_g = getEigenVector(g+1, v) ;
-            Eigen::VectorBlock<Eigen::VectorXd> phi_g = v(Eigen::seqN(dim_xyz * g, dim_xyz));
-            Eigen::VectorXd b = m_chi[g] * psi / m_eigen_values[0] + m_source(Eigen::seqN(dim_xyz * g, dim_xyz));
-
-            for (int gp{0}; gp < m_macrolib.getNbGroups(); ++gp)
-            {
-                if (g <= gp)
-                    continue;
-                b += m_S[gp][g] * getEigenVector(gp + 1, v);
-            }
-            spdlog::debug("Inner iteration for group {}", g + 1);
-            phi_g = solveInner<T>(solvers[g], b, phi_g);
-        }
-
-        psi = getFissionSource(v) ;
-
-        // decontamination of gamma
-        // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
-        if (isAdjoint())
-        {
-            Eigen::VectorXd v_rev = reverseEigenVectorEnergyCopy(v);
-            psi -= (v_rev.dot(K_ev)) / s_star_K_s * psi_v; // j'ai un doute , il faudrait le faire sur la source de fission ! 
-        }
-        else
-            psi -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * psi_v;
+//         // decontamination of gamma
+//         // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
+//         if (isAdjoint())
+//         {
+//             double lambda_proj = (v.dot(K * m_eigen_vectors[0])) / s_star_K_s ;
+//             v -= lambda_proj * m_eigen_vectors_star[0];
+//             spdlog::debug("lambda_proj = : {}", lambda_proj);
+//         }
+//         else
+//             v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0]; // todo check it 
         
 
-        // free iteration
-        if (f <= nb_free_iter || m_dominance_ratio < 0.5 || m_dominance_ratio > 1 || std::isnan(m_dominance_ratio))
-        {
-            spdlog::debug("Free outer iteration {}", i);
-            p = 1;
-            f++;
-        }
-        // chebyshev acc.
-        else
-        {
-            spdlog::debug("Cheb outer iteration {} (cycle {}/{})", i, p, nb_chebyshev_cycle_min_iter);
-            if (p == 1) // first iteration in the cycle
-            {
-                alpha = 2 / (2 - m_dominance_ratio);
-                beta = 0;
-            }
-            else
-            {
-                double gamma = std::acosh(2 / m_dominance_ratio - 1);
-                spdlog::debug("gamma = {}", gamma);
-                alpha = (4 / m_dominance_ratio) * std::cosh((p - 1) * gamma) / std::cosh(p * gamma);
-                beta = std::cosh((p - 2) * gamma) / std::cosh(p * gamma);
-                // beta = (1 - m_dominance_ratio / 2.) - 1 / alpha; //(1 - m_dominance_ratio / 2.) * alpha - 1;
-            }
-            spdlog::debug("alpha = {}", alpha);
-            spdlog::debug("beta = {}", beta);
+//         // convergence computation
+//         r_tol_ev = (v - v_prec).norm() / std::sqrt(v.dot(v_prec));
 
-            psi = psi_prec + alpha * (psi - psi_prec) + beta * (psi_prec - psi_prec_prec);
-            p++;
-        }
+//         spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
+//         i++;
+//     }
+//     spdlog::debug("----------------------------------------------------");
+//     m_gamma = v;
+//     m_nb_outer_iterations = i ; 
+//     spdlog::info("Number of outter iteration: {}", i);
+//     spdlog::info("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
+//     spdlog::debug("Eigen vector norm: {:.2e}", v.norm());
 
-        if (p >= (nb_chebyshev_cycle_min_iter + 1)) // possible end of the acceleration cycle
-            p = 1 ;
-
-        // convergence computation
-        r_tol_ev = (psi - psi_prec).norm() / std::sqrt(psi.dot(psi_prec));
-        r_tol_ev2 = ((psi.array() / psi_prec.array()).maxCoeff<Eigen::PropagateNumbers>() - (psi.array() / psi_prec.array()).minCoeff<Eigen::PropagateNumbers>()) / 2.0 ;
-
-        spdlog::debug("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
-        spdlog::debug("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
-        spdlog::debug("Eigen vector norm: {:.2e}", v.norm());
-        i++;
-    }
-    spdlog::debug("----------------------------------------------------");
-    spdlog::info("Number of outter iteration: {}", i);
-    spdlog::info("Estimated error in outter iteration (eigen vector): {:.2e}", r_tol_ev);
-    spdlog::info("Estimated error in outter iteration (eigen vector 2): {:.2e}", r_tol_ev2);
-
-    // v /= v.norm();
-    if (isAdjoint())
-    {
-        reverseEigenVectorEnergy(v);
-        reverseEigenVectorEnergy(m_source);
-    }
-
-    // decontamination of gamma
-    // maybe we can do it only every n step (6 for example in Variational Principles and Convergence Acceleration Strategies for the Neutron Diffusion Equation)
-    if (isAdjoint())
-        v -= (v.dot(K * m_eigen_vectors[0])) / s_star_K_s * m_eigen_vectors_star[0];
-    else
-        v -= (m_eigen_vectors_star[0].dot(K * v)) / s_star_K_s * m_eigen_vectors[0];
-
-    m_gamma = v;
-    m_nb_outer_iterations = i ; 
-
-    spdlog::debug("Orthogonality tests: ");
-    if (isAdjoint())
-    {
-        spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / v.dot(v));
-        spdlog::info("Gamma* Phi* : {}", v.dot(m_eigen_vectors_star[0]) / v.dot(v));
-    }
-    else
-    {
-        spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / v.dot(v));
-        spdlog::info("Gamma Phi : {}", v.dot(m_eigen_vectors[0]) / v.dot(v));
-    }
-}
+//     spdlog::info("Orthogonality tests: ");
+//     if (isAdjoint())
+//         spdlog::info("Gamma* K Phi : {}", v.dot(K * m_eigen_vectors[0]) / s_star_K_s);
+//     else
+//         spdlog::info("Gamma K* Phi* : {}", v.dot(m_K * m_eigen_vectors_star[0]) / v.dot(v));
+// }

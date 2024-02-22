@@ -22,7 +22,7 @@ else:
     optimisation = "-O3"
     debug = "-g0"
 
-OPENMP = bool(int(os.environ.get('OPENMP', 1)))
+OPENMP = bool(int(os.environ.get('OPENMP', 0)))
 
 class my_build_ext(build_ext):
     def build_extensions(self):

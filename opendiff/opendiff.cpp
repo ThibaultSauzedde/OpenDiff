@@ -154,6 +154,7 @@ PYBIND11_MODULE(opendiff, m)
     py::class_<solver::Solver>(solver, "Solver")
         .def("dump", &solver::Solver::dump, py::arg("file_name"), py::arg("suffix") = "")
         .def("load", &solver::Solver::load, py::arg("file_name"), py::arg("suffix") = "")
+        .def("getMacrolib", &solver::Solver::getMacrolib)
         .def("getVolumes", &solver::Solver::getVolumesPython)
         .def("makeAdjoint", &solver::Solver::makeAdjoint)
         .def("getEigenValues", &solver::Solver::getEigenValues)
@@ -162,7 +163,6 @@ PYBIND11_MODULE(opendiff, m)
         .def("setDominanceRatio", &solver::Solver::setDominanceRatio)
         .def("getEigenVectors", &solver::Solver::getEigenVectors)
         .def("setEigenVectors", &solver::Solver::setEigenVectors)
-        .def("getVolumes", &solver::Solver::getVolumesPython)
         .def("getEigenVector", &solver::Solver::getEigenVectorPython)
         .def("getPower", &solver::Solver::getPowerPython)
         .def("getPowerNormVector", &solver::Solver::getPowerNormVector)
@@ -206,7 +206,11 @@ PYBIND11_MODULE(opendiff, m)
 
     py::class_<solver::SolverCond<SpMat>, solver::Solver>(solver, "SolverCond")
         .def("getK", &solver::SolverCond<SpMat>::getK)
-        .def("getM", &solver::SolverCond<SpMat>::getM);
+        .def("getM", &solver::SolverCond<SpMat>::getM)
+        .def("getA", &solver::SolverCond<SpMat>::getA)
+        .def("getChi", &solver::SolverCond<SpMat>::getChi)
+        .def("getF", &solver::SolverCond<SpMat>::getF)
+        .def("getS", &solver::SolverCond<SpMat>::getS);
 
     py::class_<solver::SolverCondPowerIt, solver::SolverCond<SpMat>>(solver, "SolverCondPowerIt")
         .def(py::init<const solver::SolverCondPowerIt &>())
@@ -267,9 +271,16 @@ PYBIND11_MODULE(opendiff, m)
                                                         Eigen::VectorXd &, Eigen::VectorXd &,
                                                         double, double, int, int,
                                                         std::string, std::string, std::string>(&perturbation::firstOrderGPT<solver::SolverFull<SpMat>, solver::SolverFullFixedSource>));
-    
-    
-    
+    perturbation.def("firstOrderGptPowerIt", py::overload_cast<const solver::SolverCondPowerIt &, const solver::SolverCondPowerIt &, const solver::SolverCondPowerIt &,
+                                                               Eigen::VectorXd &, Eigen::VectorXd &,
+                                                               Eigen::VectorXd &, Eigen::VectorXd &,
+                                                               double, double, int, int,
+                                                               std::string, std::string, std::string>(&perturbation::firstOrderGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>));
+    perturbation.def("firstOrderGptImp", py::overload_cast<const solver::SolverCondPowerIt &, const solver::SolverCondPowerIt &, const solver::SolverCondPowerIt &,
+                                                           Eigen::VectorXd &, Eigen::VectorXd &,
+                                                           Eigen::VectorXd &, Eigen::VectorXd &,
+                                                           double&, Eigen::VectorXd &>(&perturbation::firstOrderGPT<solver::SolverCondPowerIt>));
+
     // operators.def("diff_diffusion_op_3d", py::overload_cast<vecd &, vecd &, vecd &, mat::Macrolib &,
     //                                                         double, double, double, double, double, double>(&operators::diff_diffusion_op<SpMat, vecd>));
     // &perturbation::firstOrderGPT<solver::SolverFull<SpMat>>);
@@ -283,7 +294,7 @@ PYBIND11_MODULE(opendiff, m)
         .def("solveReference", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::solveReference)
         .def("calcImportances", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::calcImportances)
         .def("firstOrderPerturbation", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::firstOrderPerturbation)
-        .def("highOrderPerturbation", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::highOrderPerturbation,
+        .def("exactPerturbation", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::exactPerturbation,
              py::arg("solver_pert"), py::arg("tol_eigen_value") = 1e-5, py::arg("max_iter") = 100, py::arg("basis_size") = -1)
         .def("getBasis", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getBasis)
         .def("getImportances", &perturbation::EpGPT<solver::SolverFullPowerIt, solver::SolverFullFixedSource>::getImportances)
@@ -309,7 +320,7 @@ PYBIND11_MODULE(opendiff, m)
         .def("solveReference", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::solveReference)
         .def("calcImportances", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::calcImportances)
         .def("firstOrderPerturbation", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::firstOrderPerturbation)
-        .def("highOrderPerturbation", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::highOrderPerturbation,
+        .def("exactPerturbation", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::exactPerturbation,
              py::arg("solver_pert"), py::arg("tol_eigen_value") = 1e-5, py::arg("max_iter") = 100, py::arg("basis_size") = -1)
         .def("getBasis", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getBasis)
         .def("getImportances", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::getImportances)
@@ -325,4 +336,38 @@ PYBIND11_MODULE(opendiff, m)
         .def("setBasisSolvers", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::setBasisSolvers)
         .def("dump", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::dump)
         .def("load", &perturbation::EpGPT<solver::SolverCondPowerIt, solver::SolverCondFixedSource>::load);
+
+    py::class_<perturbation::EpGPTSVD>(perturbation, "EpGPTSVD")
+        .def(py::init<const perturbation::EpGPTSVD &>())
+        .def(py::init<vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double>())
+        .def(py::init<vecd &, vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double, double, double>())
+        .def(py::init<vecd &, vecd &, vecd &, mat::Middles &, const std::vector<std::vector<std::vector<std::string>>> &, double, double, double, double, double, double>())
+        .def("createBasis", &perturbation::EpGPTSVD::createBasis)
+        .def("getBasisPrecisions", &perturbation::EpGPTSVD::getBasisPrecisions)
+        .def("getBasisSize", &perturbation::EpGPTSVD::getBasisSize)
+        .def("calcSnapshots", &perturbation::EpGPTSVD::calcSnapshots)
+        .def("solveReference", &perturbation::EpGPTSVD::solveReference)
+        .def("calcImportances", &perturbation::EpGPTSVD::calcImportances)
+        .def("firstOrderPerturbation", &perturbation::EpGPTSVD::firstOrderPerturbation)
+        .def("exactPerturbation", &perturbation::EpGPTSVD::exactPerturbation,
+             py::arg("solver_pert"), py::arg("tol_eigen_value") = 1e-5, py::arg("max_iter") = 100, py::arg("basis_size") = -1)
+        // .def("clearBasis", &perturbation::EpGPTSVD::clearBasis)
+        .def("getBasis", &perturbation::EpGPTSVD::getBasis)
+        .def("getDeltaV", &perturbation::EpGPTSVD::getDeltaV)
+        .def("getImportances", &perturbation::EpGPTSVD::getImportances)
+        .def("getN_star", &perturbation::EpGPTSVD::getN_star)
+        .def("getSolver", &perturbation::EpGPTSVD::getSolver)
+        .def("getSolverStar", &perturbation::EpGPTSVD::getSolverStar)
+        .def("getBasisSolvers", &perturbation::EpGPTSVD::getBasisSolvers)
+        .def("setBasis", &perturbation::EpGPTSVD::setBasis)
+        .def("setDeltaV", &perturbation::EpGPTSVD::setDeltaV)
+        .def("setImportances", &perturbation::EpGPTSVD::setImportances)
+        .def("setN_star", &perturbation::EpGPTSVD::setN_star)
+        .def("setSolver", &perturbation::EpGPTSVD::setSolver)
+        .def("setSolverStar", &perturbation::EpGPTSVD::setSolverStar)
+        .def("setBasisSolvers", &perturbation::EpGPTSVD::setBasisSolvers)
+        .def("getTrials", &perturbation::EpGPTSVD::getTrials)
+        .def("setTrials", &perturbation::EpGPTSVD::setTrials)
+        .def("dump", &perturbation::EpGPTSVD::dump)
+        .def("load", &perturbation::EpGPTSVD::load);
 }

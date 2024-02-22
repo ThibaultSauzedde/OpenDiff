@@ -537,6 +537,8 @@ namespace solver
 
         SolverFullFixedSource(const SolverFull<SpMat> &solver, const SolverFull<SpMat> &solver_star, const Eigen::VectorXd &source);
 
+        SolverFullFixedSource(const SolverCond<SpMat> &solver, const SolverCond<SpMat> &solver_star, const Eigen::VectorXd &source);
+
         void solve(double tol, double tol_eigen_vectors, int nb_eigen_values, const Eigen::VectorXd &v0, double ev0,
                    double tol_inner, int outer_max_iter, int inner_max_iter, std::string inner_solver, std::string inner_precond,
                    std::string acceleration = "") override;
@@ -548,10 +550,6 @@ namespace solver
         template <class T>
         void solveChebyshev(double tol, const Eigen::VectorXd &v0,
                             double tol_inner, int outer_max_iter, int inner_max_iter);
-
-        template <class T>
-        void solveChebyshevFixedDR(double tol, const Eigen::VectorXd &v0,
-                                     double tol_inner, int outer_max_iter, int inner_max_iter);
 
         const auto &getGamma() const
         {
@@ -615,10 +613,6 @@ namespace solver
 
         template <class T>
         void solveChebyshev(double tol, const Eigen::VectorXd &v0,
-                            double tol_inner, int outer_max_iter, int inner_max_iter);
-
-        template <class T>
-        void solveChebyshevFixedDR(double tol, const Eigen::VectorXd &v0,
                             double tol_inner, int outer_max_iter, int inner_max_iter);
 
         const auto &getGamma() const
